@@ -1,0 +1,88 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromRequest, unauthorized } from '@/lib/auth';
+import { query } from '@/lib/db';
+import { addAuditLog } from '@/lib/audit';
+import { generatePdf, PdfDocumentData } from '@/lib/pdf';
+
+// POST /api/documents/[id]/pdf
+// Generate PDF dan kembalikan URL file
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getSessionFromRequest(req);
+  if (!user) return unauthorized();
+
+  const { id } = await params;
+  const docId = parseInt(id);
+
+  // Ambil data dokumen + sections + refs + approvals
+  const [docs, sections, refs, approvals] = await Promise.all([
+    query<any[]>(
+      `SELECT d.*, u.full_name AS penyusun_name
+       FROM documents d LEFT JOIN users u ON u.id = d.penyusun_id
+       WHERE d.id = ?`, [docId]
+    ),
+    query<any[]>(
+      'SELECT section_key, content FROM document_sections WHERE document_id = ?', [docId]
+    ),
+    query<any[]>(
+      `SELECT r.kategori, r.nomor, r.judul
+       FROM document_references dr JOIN \`references\` r ON r.id = dr.reference_id
+       WHERE dr.document_id = ?`, [docId]
+    ),
+    query<any[]>(
+      `SELECT a.*, u.full_name AS actor_name
+       FROM approvals a JOIN users u ON u.id = a.actor_id
+       WHERE a.document_id = ? AND a.action = 'Approve'
+       ORDER BY a.stage`, [docId]
+    ),
+  ]);
+
+  if (!docs.length) return NextResponse.json({ error: 'Dokumen tidak ditemukan.' }, { status: 404 });
+
+  const doc = docs[0];
+  const sectionsMap: Record<string, string> = {};
+  sections.forEach((s: any) => { sectionsMap[s.section_key] = s.content; });
+
+  const mgrApproval     = approvals.find((a: any) => a.stage === 2);
+  const pimpinanApproval= approvals.find((a: any) => a.stage === 3);
+
+  // Build base URL for signature images
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+  const pdfData: PdfDocumentData = {
+    kode:     doc.kode,
+    judul:    doc.judul,
+    jenis:    doc.jenis,
+    bidang:   doc.bidang,
+    versi:    doc.current_version,
+    status:   doc.status,
+    updatedAt:doc.updated_at,
+    sections: sectionsMap,
+    refs,
+    penyusun: doc.penyusun_name,
+    mgrApprover:       mgrApproval?.actor_name ?? null,
+    mgrSignature:      mgrApproval?.signature_path
+      ? `${baseUrl}${mgrApproval.signature_path}` : null,
+    pimpinanApprover:  pimpinanApproval?.actor_name ?? null,
+    pimpinanSignature: pimpinanApproval?.signature_path
+      ? `${baseUrl}${pimpinanApproval.signature_path}` : null,
+  };
+
+  try {
+    const pdfUrl = await generatePdf(pdfData, docId);
+
+    await addAuditLog(user, 'GENERATE', {
+      documentId: docId,
+      docKode:    doc.kode,
+      note:       `Generate PDF v${doc.current_version}`,
+    });
+
+    return NextResponse.json({ data: { url: pdfUrl }, message: 'PDF berhasil dibuat.' });
+  } catch (err) {
+    console.error('[PDF Generation Error]', err);
+    return NextResponse.json(
+      { error: 'Gagal generate PDF. Pastikan Chromium/Chrome tersedia di server.' },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Next.js build output
+.next/
+out/
+build/
+
+# Environment local files (JANGAN commit credentials)
+.env*.local
+.env
+
+# Uploads
+public/uploads/pdf/*.pdf
+public/uploads/signatures/*
+!public/uploads/signatures/.gitkeep
+!public/uploads/pdf/.gitkeep
+!public/uploads/attachments/.gitkeep
+
+# Logs & temp
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+*.pem

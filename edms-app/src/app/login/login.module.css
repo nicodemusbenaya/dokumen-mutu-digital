@@ -1,0 +1,54 @@
+.page {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 50%, #2A3F6A 100%);
+}
+.card {
+  background: rgba(255,255,255,.07);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: var(--r-xl);
+  padding: 44px 48px;
+  width: 400px;
+  box-shadow: var(--sh-xl);
+  animation: slideUp .4s var(--t-slow);
+}
+.logo {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 32px;
+}
+.logoIcon {
+  width: 44px; height: 44px; background: var(--amber);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.logoTitle { font-family: var(--serif); font-size: 17px; color: #fff; font-weight: 600; line-height: 1.2; }
+.logoSub   { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 3px; }
+
+/* Override form field styles for dark bg */
+.card :global(.field label)  { color: rgba(255,255,255,.6); }
+.card :global(.field input)  {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.15);
+  color: #fff;
+}
+.card :global(.field input:focus) { border-color: var(--amber); }
+.card :global(.field input::placeholder) { color: rgba(255,255,255,.35); }
+
+.error {
+  background: rgba(180,72,60,.25); border: 1px solid rgba(180,72,60,.4);
+  color: #FFCBC6; padding: 10px 12px; border-radius: var(--r-md);
+  font-size: 13px; margin-bottom: 14px;
+}
+.submitBtn {
+  width: 100%; padding: 13px;
+  background: var(--amber); border: none; border-radius: var(--r-md);
+  color: var(--navy-deep); font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: all var(--t-fast); margin-top: 4px;
+}
+.submitBtn:hover:not(:disabled) { background: #E8AC46; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(217,154,52,.4); }
+.submitBtn:disabled { opacity: .55; cursor: not-allowed; }
+.hint {
+  font-size: 11.5px; color: rgba(255,255,255,.3);
+  text-align: center; margin-top: 20px; line-height: 1.7;
+}
+.hint code { background: rgba(255,255,255,.1); padding: 1px 6px; border-radius: 4px; }
