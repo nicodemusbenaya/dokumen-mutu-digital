@@ -83,7 +83,7 @@ export default function TipTapEditor({ content, onChange }: Props) {
         {toolbarBtn('⌧', () => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote'), 'Blockquote')}
         {toolbarBtn('---', () => editor.chain().focus().setHorizontalRule().run(), false, 'Horizontal Rule')}
         <div className="tbar-sep"></div>
-        {toolbarBtn('📊 +Tabel', () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), false, 'Sisipkan Tabel')}
+        {toolbarBtn('+ Tabel', () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), false, 'Sisipkan Tabel')}
         {toolbarBtn('+Baris', () => editor.chain().focus().addRowAfter().run(), false, 'Tambah Baris di Bawah')}
         {toolbarBtn('-Baris', () => editor.chain().focus().deleteRow().run(), false, 'Hapus Baris')}
         {toolbarBtn('+Kolom', () => editor.chain().focus().addColumnAfter().run(), false, 'Tambah Kolom di Kanan')}

@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
+import { injectSignaturesIntoFormHtml } from '@/lib/pdf-utils';
 
 // ─────────────────────────────────────────────────────────────────
 //  PDF Generation — Puppeteer (HTML-to-PDF)
@@ -116,66 +117,7 @@ const FORMULIR_OFFICIAL_HEADERS: Record<string, { title: string; formNo: string 
   }
 };
 
-// Injeksi otomatis tanda tangan dan nama approver ke dalam blok tanda tangan di formulir/dokumen
-export function injectSignaturesIntoFormHtml(
-  html: string,
-  data: {
-    mgrSignature?: string | null;
-    mgrApprover?: string | null;
-    pimpinanSignature?: string | null;
-    pimpinanApprover?: string | null;
-    penyusun?: string | null;
-  }
-): string {
-  if (!html) return html;
-  let res = html;
 
-  // 1. Injeksi Tanda Tangan Digital Manager
-  if (data.mgrSignature) {
-    const sigImgTag = `<div style="height:55px; display:flex; align-items:center; justify-content:center; margin:4px auto;"><img src="${data.mgrSignature}" style="max-height:50px; max-width:140px; display:block; margin:0 auto; object-fit:contain;" alt="Tanda Tangan Digital Manager" /></div>`;
-
-    // Pola A: Template baku memiliki placeholder <div style="height:60px;"></div>
-    if (res.includes('<div style="height:60px;"></div>')) {
-      res = res.replace('<div style="height:60px;"></div>', sigImgTag);
-    } 
-    // Pola B: Editor TipTap menghapus div dan menyisakan paragraf Manager langsung bersisian dengan nama (dalam <p> tags)
-    else if (!res.includes('alt="Tanda Tangan Digital Manager"') && !res.includes('<table') ) {
-      res = res.replace(
-        /(<p[^>]*>(?:[\s\S](?!<\/p>))*Manager(?:[\s\S](?!<\/p>))*<\/p>)(\s*)(<p[^>]*>\s*<strong[^>]*>\s*\((?:[\s\S])*?\)\s*<\/strong>\s*<\/p>|<p[^>]*>\s*\((?:[\s\S])*?\)\s*<\/p>)/i,
-        `$1${sigImgTag}$3`
-      );
-    }
-    // Pola C: TipTap mereformat menjadi table; signature block ada di dalam <td>
-    // Inject sebelum <p><strong>( name )</strong></p> yang ada dalam td yang sama dengan "Manager"
-    else if (!res.includes('alt="Tanda Tangan Digital Manager"')) {
-      res = res.replace(
-        /(<strong>Manager[\s\S]*?<\/strong><\/p>)(\s*)(<p>\s*<strong>\s*\()/i,
-        `$1${sigImgTag}$3`
-      );
-    }
-
-    // Ganti titik-titik placeholder nama dengan nama approver resmi
-    if (data.mgrApprover) {
-      res = res.replace(/\(\s*\.{3,}\s*\)/g, `(${data.mgrApprover})`);
-    }
-  }
-
-  // 2. Injeksi Tanda Tangan Digital Pimpinan / Senior Manager (jika ada pada teks)
-  if (data.pimpinanSignature) {
-    const pimpinanSigImg = `<div style="height:55px; display:flex; align-items:center; justify-content:center; margin:4px auto;"><img src="${data.pimpinanSignature}" style="max-height:50px; max-width:140px; display:block; margin:0 auto; object-fit:contain;" alt="Tanda Tangan Digital Pimpinan" /></div>`;
-    if (!res.includes('alt="Tanda Tangan Digital Pimpinan"')) {
-      res = res.replace(
-        /(<p[^>]*>(?:[\s\S](?!<\/p>))*(?:Senior Manager|Pimpinan|General Manager)(?:[\s\S](?!<\/p>))*<\/p>)(\s*)(<p[^>]*>\s*<strong[^>]*>\s*\((?:[\s\S])*?\)\s*<\/strong>\s*<\/p>|<p[^>]*>\s*\((?:[\s\S])*?\)\s*<\/p>)/i,
-        `$1${pimpinanSigImg}$3`
-      );
-    }
-    if (data.pimpinanApprover) {
-      res = res.replace(/\(\s*\.{3,}\s*\)/g, `(${data.pimpinanApprover})`);
-    }
-  }
-
-  return res;
-}
 
 function buildPdfHtml(doc: PdfDocumentData, logos: { danantara: string; pln: string }): string {
   const isFormulir = FORMULIR_TYPES.has(doc.jenis);

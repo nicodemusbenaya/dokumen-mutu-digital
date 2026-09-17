@@ -46,12 +46,38 @@ export async function GET(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Dokumen tidak ditemukan.' }, { status: 404 });
   }
 
-  const doc = docs[0];
+  const raw = docs[0];
+  const doc = {
+    ...raw,
+    siklusReview:  raw.siklus_review,
+    currentVersion: raw.current_version,
+    versionNumber: raw.version_number,
+    penyusunId:    raw.penyusun_id,
+    penyusunName:  raw.penyusun_name,
+    auditRef:      raw.audit_ref,
+    ackTotal:      raw.ack_total,
+    ackDone:       raw.ack_done,
+    createdAt:     raw.created_at,
+    updatedAt:     raw.updated_at,
+  };
   const sectionsMap: Record<string, string> = {};
   sections.forEach((s: any) => { sectionsMap[s.section_key] = s.content; });
 
+  const mappedApprovals = approvals.map((a: any) => ({
+    id:            a.id,
+    documentId:    a.document_id,
+    stage:         a.stage,
+    action:        a.action,
+    actorId:       a.actor_id,
+    actorName:     a.actor_name,
+    note:          a.note,
+    signaturePath: a.signature_path,
+    docVersion:    a.doc_version,
+    createdAt:     a.created_at,
+  }));
+
   return NextResponse.json({
-    data: { ...doc, sections: sectionsMap, refs, approvals, versions }
+    data: { ...doc, sections: sectionsMap, refs, approvals: mappedApprovals, versions }
   });
 }
 

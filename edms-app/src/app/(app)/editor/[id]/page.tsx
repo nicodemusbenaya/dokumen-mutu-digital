@@ -249,7 +249,7 @@ export default function EditorPage() {
         {/* Left: metadata + nav */}
         <div style={{display:'flex',flexDirection:'column',gap:16}}>
           <div className="card card-body">
-            <div style={{fontWeight:700,fontSize:13,marginBottom:14}}>📋 Informasi Dokumen</div>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:14}}>Informasi Dokumen</div>
             <div className="field">
               <label>Kode Dokumen *</label>
               <input value={header.kode} onChange={e => updateHeader({ kode: e.target.value })} placeholder="SOP.UPS.XX.2026" readOnly={!isNew} />

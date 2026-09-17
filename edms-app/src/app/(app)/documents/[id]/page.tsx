@@ -262,10 +262,10 @@ export default function DocumentDetailPage() {
           <ul className="timeline">
             {[
               { label:'Penyusunan', sub: `Oleh ${doc.penyusunName || '—'}`, done: true, date: doc.createdAt },
-              { label:'Review Tim Mutu', sub: reviewApproval ? `✅ ${reviewApproval.actorName}${reviewApproval.note ? ': ' + reviewApproval.note : ''}` : doc.status === 'Draft' ? 'Menunggu pengajuan' : 'Menunggu Tim Mutu', done: !!reviewApproval, current: doc.status === 'Review' },
-              { label:'Approval Manager Bidang', sub: mgrApproval ? `✅ ${mgrApproval.actorName}${mgrApproval.note ? ': ' + mgrApproval.note : ''}` : 'Menunggu', done: !!mgrApproval, current: !mgrApproval && doc.status === 'Menunggu Approval' && !!reviewApproval },
-              { label:'Pengesahan Pimpinan Unit', sub: pimpinanApproval ? `✅ ${pimpinanApproval.actorName}` : 'Menunggu', done: !!pimpinanApproval, current: !pimpinanApproval && doc.status === 'Menunggu Approval' && !!mgrApproval },
-              { label:'Terbit & Aktif', sub: doc.status === 'Aktif' ? '🎉 Dokumen resmi terbit' : 'Menunggu pengesahan', done: doc.status === 'Aktif' || doc.status === 'Obsolete' },
+              { label:'Review Tim Mutu', sub: reviewApproval ? `${reviewApproval.actorName}${reviewApproval.note ? ': ' + reviewApproval.note : ''}` : doc.status === 'Draft' ? 'Menunggu pengajuan' : 'Menunggu Tim Mutu', done: !!reviewApproval, current: doc.status === 'Review' },
+              { label:'Approval Manager Bidang', sub: mgrApproval ? `${mgrApproval.actorName}${mgrApproval.note ? ': ' + mgrApproval.note : ''}` : 'Menunggu', done: !!mgrApproval, current: !mgrApproval && doc.status === 'Menunggu Approval' && !!reviewApproval },
+              { label:'Pengesahan Pimpinan Unit', sub: pimpinanApproval ? `${pimpinanApproval.actorName}` : 'Menunggu', done: !!pimpinanApproval, current: !pimpinanApproval && doc.status === 'Menunggu Approval' && !!mgrApproval },
+              { label:'Terbit & Aktif', sub: doc.status === 'Aktif' ? 'Dokumen resmi terbit' : 'Menunggu pengesahan', done: doc.status === 'Aktif' || doc.status === 'Obsolete' },
             ].map((step, i) => (
               <li key={i} className={step.done ? 'tl-done' : step.current ? 'tl-current' : ''}>
                 <div className="tl-title">{step.label}</div>
@@ -307,7 +307,7 @@ export default function DocumentDetailPage() {
         <div className="overlay" onClick={() => setApprovalOpen(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">✍️ Berikan Approval / Review</div>
+              <div className="modal-title">Berikan Approval / Review</div>
               <button className="modal-close" onClick={() => setApprovalOpen(false)}>×</button>
             </div>
             <div>
@@ -315,8 +315,8 @@ export default function DocumentDetailPage() {
                 <div className="field">
                   <label>Tindakan</label>
                   <select value={approvalAction} onChange={e => setApprovalAction(e.target.value as any)}>
-                    <option value="Approve">✅ Setujui</option>
-                    <option value="Reject">↩ Kembalikan ke Penyusun</option>
+                    <option value="Approve">Setujui</option>
+                    <option value="Reject">Kembalikan ke Penyusun</option>
                   </select>
                 </div>
                 <div className="field">
@@ -357,7 +357,7 @@ export default function DocumentDetailPage() {
                 onClick={handleApprove}
                 disabled={approving}
               >
-                {approving ? 'Memproses...' : approvalAction === 'Approve' ? '✅ Konfirmasi Setujui' : '↩ Kembalikan'}
+                {approving ? 'Memproses...' : approvalAction === 'Approve' ? 'Konfirmasi Setujui' : 'Kembalikan'}
               </button>
             </div>
           </div>

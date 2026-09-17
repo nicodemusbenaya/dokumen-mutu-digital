@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Document, DocumentDetail } from '@/types';
 import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
-import { injectSignaturesIntoFormHtml } from '@/lib/pdf';
-import { IconEditor, IconDownload } from '@/components/icons/Icons';
+import { injectSignaturesIntoFormHtml } from '@/lib/pdf-utils';
+import { IconEditor, IconDownload, IconSearch } from '@/components/icons/Icons';
 import Image from 'next/image';
 
 const FORMULIR_TYPES = new Set([
@@ -50,6 +50,8 @@ export default function PdfPreviewPage() {
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Fetch all documents for switcher dropdown
   useEffect(() => {
@@ -118,6 +120,15 @@ export default function PdfPreviewPage() {
   const mgrAppr  = doc?.approvals?.find(a => a.stage === 2 && a.action === 'Approve');
   const pimpAppr = doc?.approvals?.find(a => a.stage === 3 && a.action === 'Approve');
 
+  // Filtered documents based on search
+  const filteredDocs = docs.filter(d => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return d.kode.toLowerCase().includes(q) || d.judul.toLowerCase().includes(q) || d.status.toLowerCase().includes(q);
+  });
+
+  const selectedDoc = docs.find(d => d.id === selectedId);
+
   return (
     <>
       {/* Top action bar */}
@@ -130,31 +141,112 @@ export default function PdfPreviewPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Document Switcher */}
-          <select
-            style={{
-              padding: '9px 14px',
-              border: '1.5px solid var(--paper-line)',
-              borderRadius: 'var(--r-md)',
-              fontSize: 13,
-              background: 'var(--card)',
-              color: 'var(--ink)',
-              fontWeight: 500,
-              cursor: 'pointer'
-            }}
-            value={selectedId || ''}
-            onChange={e => {
-              const newId = parseInt(e.target.value);
-              setSelectedId(newId);
-              router.replace(`/pdf?id=${newId}`);
-            }}
-          >
-            {docs.map(d => (
-              <option key={d.id} value={d.id}>
-                [{d.status}] {d.kode} - {d.judul}
-              </option>
-            ))}
-          </select>
+          {/* Searchable Document Switcher */}
+          <div style={{ position: 'relative', minWidth: 300 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                border: '1.5px solid var(--paper-line)',
+                borderRadius: 'var(--r-md)',
+                background: 'var(--card)',
+                cursor: 'pointer',
+                transition: 'border-color var(--t-fast)'
+              }}
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              onFocus={() => setDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}
+            >
+              <IconSearch size={15} style={{ color: 'var(--ink-muted)', flexShrink: 0 }} />
+              <input
+                type="text"
+                placeholder="Cari kode atau judul dokumen..."
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setDropdownOpen(true); }}
+                onFocus={() => setDropdownOpen(true)}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontSize: 13,
+                  color: 'var(--ink)',
+                  width: '100%',
+                  fontWeight: 500
+                }}
+                onClick={e => e.stopPropagation()}
+              />
+              {selectedDoc && !searchQuery && (
+                <span style={{ fontSize: 11, color: 'var(--ink-soft)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  [{selectedDoc.status}] {selectedDoc.kode}
+                </span>
+              )}
+            </div>
+            {dropdownOpen && filteredDocs.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                marginTop: 4,
+                background: 'var(--card)',
+                border: '1px solid var(--paper-line)',
+                borderRadius: 'var(--r-md)',
+                boxShadow: 'var(--sh-lg)',
+                maxHeight: 280,
+                overflowY: 'auto',
+                zIndex: 50
+              }}>
+                {filteredDocs.map(d => (
+                  <div
+                    key={d.id}
+                    style={{
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      fontSize: 12.5,
+                      borderBottom: '1px solid var(--paper-line)',
+                      background: d.id === selectedId ? 'var(--pln-blue-soft)' : 'transparent',
+                      transition: 'background var(--t-fast)'
+                    }}
+                    onMouseEnter={e => { if (d.id !== selectedId) (e.currentTarget.style.background = 'var(--paper)'); }}
+                    onMouseLeave={e => { if (d.id !== selectedId) (e.currentTarget.style.background = 'transparent'); }}
+                    onClick={() => {
+                      setSelectedId(d.id);
+                      setSearchQuery('');
+                      setDropdownOpen(false);
+                      router.replace(`/pdf?id=${d.id}`);
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{d.kode}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.judul}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {dropdownOpen && searchQuery && filteredDocs.length === 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                marginTop: 4,
+                background: 'var(--card)',
+                border: '1px solid var(--paper-line)',
+                borderRadius: 'var(--r-md)',
+                boxShadow: 'var(--sh-lg)',
+                padding: '20px 12px',
+                textAlign: 'center',
+                fontSize: 12.5,
+                color: 'var(--ink-muted)',
+                zIndex: 50
+              }}>
+                Tidak ada dokumen ditemukan
+              </div>
+            )}
+          </div>
 
           {doc && (
             <Link href={`/editor/${doc.id}`} className="btn btn-outline btn-sm">

@@ -130,7 +130,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     message: action === 'Approve'
-      ? stage === 3 ? 'Dokumen resmi terbit dan aktif! 🎉' : 'Disetujui dan diteruskan ke tahap berikutnya.'
+      ? stage === 3 ? 'Dokumen resmi terbit dan aktif.' : 'Disetujui dan diteruskan ke tahap berikutnya.'
       : 'Dokumen dikembalikan ke Penyusun.',
   });
 }

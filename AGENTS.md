@@ -142,11 +142,69 @@ Dokumen Mutu Digital/
     │   │   ├── (app)/                 # Rute utama (dashboard, editor, approval, audit, dll)
     │   │   ├── api/                   # API Routes (auth, documents, approvals, audit, pdf)
     │   │   └── login/                 # Halaman login
-    │   ├── components/                # Komponen modular UI (editor, signature pad, layout)
-    │   └── lib/                       # Utility (db.ts, auth.ts, rbac.ts, audit.ts, pdf.ts)
+    │   ├── components/
+    │   │   ├── icons/Icons.tsx         # Ikon SVG modular (Lucide-style, stroke-based)
+    │   │   ├── layout/                # Sidebar, Topbar
+    │   │   └── editor/                # TipTapEditor, TableGridEditor
+    │   └── lib/
+    │       ├── db.ts                  # Koneksi MariaDB pool
+    │       ├── auth.ts                # JWT session (HttpOnly cookie)
+    │       ├── rbac.ts                # Role-Based Access Control
+    │       ├── audit.ts               # Audit log helper
+    │       ├── pdf.ts                 # PDF generation (Puppeteer + Chromium)
+    │       └── pdf-utils.ts           # Fungsi murni untuk injeksi TTD ke HTML (client-safe)
     ├── .env.local                     # Environment variables lokal
     └── next.config.ts                 # Konfigurasi Next.js (output: 'standalone')
 ```
+
+---
+
+## 9. API Endpoints
+
+| Endpoint | Method | Deskripsi | Akses |
+|---|---|---|---|
+| `/api/auth/login` | POST | Login & set session cookie | Publik |
+| `/api/auth/logout` | POST | Hapus session cookie | Login |
+| `/api/auth/me` | GET | Dapatkan data user saat ini | Login |
+| `/api/documents` | GET | Daftar dokumen (filter, pagination, search) | Login |
+| `/api/documents` | POST | Buat dokumen baru | Penyusun, Admin |
+| `/api/documents/[id]` | GET | Detail dokumen + sections + approvals | Login |
+| `/api/documents/[id]` | PUT | Update dokumen (optimistic locking) | Penyusun, Admin |
+| `/api/documents/[id]` | DELETE | Hapus dokumen | Admin Sistem |
+| `/api/documents/[id]/approve` | POST | Approve/reject dengan tanda tangan digital | Reviewer, Manager, Pimpinan |
+| `/api/documents/[id]/submit` | POST | Submit dokumen untuk review | Penyusun |
+| `/api/documents/[id]/pdf` | POST | Generate PDF dokumen | Login |
+| `/api/references` | GET/POST | Master referensi standar | Login / Admin |
+| `/api/references/[id]` | PUT/DELETE | Update/hapus referensi | Admin |
+| `/api/audit` | GET | Log audit aktivitas | Login |
+
+---
+
+## 10. Fitur Utama
+
+### Tanda Tangan Digital
+- **Signature Pad**: Komponen canvas menggunakan library `signature_pad` npm
+- **Penyimpanan**: File PNG disimpan di `public/uploads/signatures/` dengan naming `sig_{userId}_doc{docId}_stage{N}_{timestamp}.png`
+- **Path disimpan** di kolom `approvals.signature_path`
+- **Rendering di PDF**: Base64 data URL di-embed langsung ke HTML sebelum konversi Puppeteer
+- **Rendering di Web**: `<img src={signaturePath}>` langsung dari API response
+
+### Ikon SVG
+- Semua ikon menggunakan SVG modular di `src/components/icons/Icons.tsx`
+- Konsisten `strokeWidth="1.75"`, style Lucide (line-based, rounded caps)
+- Tidak menggunakan emoji — semua ikon adalah SVG yang di-render
+- Ikon yang tersedia: Dashboard, Documents, Editor, Table, Trash, Filter, Approval, Pdf, Peta, References, Audit, Logout, Search, Check, ArrowLeft, Plus, Download, User, Lock, Building, Clock, Activity, FileText, CheckCircle, AlertCircle, Send, Refresh
+
+### RBAC (Role-Based Access Control)
+- Validasi role dilakukan di **server-side** (API routes), bukan hanya frontend
+- Role: Admin Sistem, Pimpinan Unit, Manager Bidang, Tim Mutu, Penyusun Dokumen
+- Fungsi `hasPermission()` dan `canEditDocument()` di `src/lib/rbac.ts`
+
+### Hapus Dokumen
+- Hanya **Admin Sistem** yang dapat menghapus dokumen
+- Tombol Hapus hanya muncul di daftar dokumen untuk admin
+- Konfirmasi modal sebelum hapus
+- Endpoint: `DELETE /api/documents/[id]` — hanya dokumen berstatus `Obsolete` yang dapat dihapus
 
 ---
 
@@ -164,3 +222,10 @@ Dokumen Mutu Digital/
    * Validasi token JWT session dan hak akses peran (RBAC) wajib diterapkan di level API endpoint / server actions, bukan sekadar menyembunyikan tombol di frontend.
 5. **Generator PDF ISO**:
    * Modul PDF di [pdf.ts](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/edms-app/src/lib/pdf.ts) menggunakan `puppeteer-core` dan `@sparticuz/chromium-min` untuk lingkungan server/container Linux/Windows dengan layout kop surat resmi dan watermark *Controlled Copy*.
+6. **Ikon SVG**:
+   * Gunakan ikon dari `src/components/icons/Icons.tsx`. Jangan gunakan emoji sebagai pengganti ikon.
+   * Semua ikon harus stroke-based (bukan filled), konsisten `strokeWidth="1.75"`, dan menggunakan `currentColor` agar mengikuti warna parent.
+7. **Penanganan Data API (snake_case vs camelCase)**:
+   * Database MariaDB menggunakan snake_case (`signature_path`, `actor_name`, `current_version`).
+   * Frontend TypeScript menggunakan camelCase (`signaturePath`, `actorName`, `currentVersion`).
+   * Mapping dilakukan di API route sebelum response dikirim ke client.

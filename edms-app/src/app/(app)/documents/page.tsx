@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Document } from '@/types';
-import { IconPlus, IconSearch, IconFilter } from '@/components/icons/Icons';
+import { IconPlus, IconSearch, IconFilter, IconTrash } from '@/components/icons/Icons';
 import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS } from '@/lib/documentTypes';
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
@@ -31,12 +31,16 @@ export default function DocumentsPage() {
   const [docs,    setDocs]    = useState<Document[]>([]);
   const [total,   setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>('');
 
   const [q,      setQ]      = useState(searchParams.get('q') || '');
   const [status, setStatus] = useState(searchParams.get('status') || '');
   const [bidang, setBidang] = useState(searchParams.get('bidang') || '');
   const [jenis,  setJenis]  = useState(searchParams.get('jenis') || '');
   const [page,   setPage]   = useState(1);
+
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; doc: Document | null }>({ open: false, doc: null });
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDocs = useCallback(async () => {
     setLoading(true);
@@ -56,6 +60,33 @@ export default function DocumentsPage() {
   }, [q, status, bidang, jenis, page]);
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
+
+  // Fetch current user role
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => { if (json?.data?.role) setUserRole(json.data.role); })
+      .catch(() => {});
+  }, []);
+
+  async function handleDelete() {
+    if (!deleteModal.doc || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/documents/${deleteModal.doc.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDeleteModal({ open: false, doc: null });
+        fetchDocs();
+      } else {
+        const json = await res.json();
+        alert(json.error || 'Gagal menghapus dokumen.');
+      }
+    } catch {
+      alert('Terjadi kesalahan saat menghapus dokumen.');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <>
@@ -194,6 +225,16 @@ export default function DocumentsPage() {
                         Edit
                       </Link>
                     )}
+                    {userRole === 'Admin Sistem' && (
+                      <button
+                        className="btn btn-xs"
+                        style={{ color: 'var(--red)', border: '1px solid var(--red-border)', background: 'var(--red-soft)' }}
+                        onClick={() => setDeleteModal({ open: true, doc: d })}
+                      >
+                        <IconTrash size={12} />
+                        Hapus
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -201,6 +242,32 @@ export default function DocumentsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.open && deleteModal.doc && (
+        <div className="overlay" onClick={() => !deleting && setDeleteModal({ open: false, doc: null })}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Hapus Dokumen</div>
+              <button className="modal-close" onClick={() => !deleting && setDeleteModal({ open: false, doc: null })}>×</button>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--ink-mid)', lineHeight: 1.6 }}>
+              <p>Anda yakin ingin menghapus dokumen berikut?</p>
+              <div style={{ background: 'var(--paper)', border: '1px solid var(--paper-line)', borderRadius: 'var(--r-md)', padding: '12px 14px', marginTop: 12 }}>
+                <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{deleteModal.doc.kode}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>{deleteModal.doc.judul}</div>
+              </div>
+              <p style={{ marginTop: 12, fontSize: 12, color: 'var(--red)' }}>Tindakan ini tidak dapat dibatalkan.</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setDeleteModal({ open: false, doc: null })} disabled={deleting}>Batal</button>
+              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Menghapus...' : 'Hapus Dokumen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
