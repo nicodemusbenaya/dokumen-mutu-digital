@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Document, DocumentDetail } from '@/types';
 import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
+import { injectSignaturesIntoFormHtml } from '@/lib/pdf';
 import { IconEditor, IconDownload } from '@/components/icons/Icons';
 import Image from 'next/image';
 
@@ -236,10 +237,16 @@ export default function PdfPreviewPage() {
                         const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
                         const docSectionKeys = Object.keys(doc.sections || {});
                         const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+                        const sigData = {
+                          mgrSignature: mgrAppr?.signaturePath ?? null,
+                          mgrApprover: mgrAppr?.actorName ?? null,
+                          pimpinanSignature: pimpAppr?.signaturePath ?? null,
+                          pimpinanApprover: pimpAppr?.actorName ?? null,
+                        };
                         return allKeys
                           .filter(key => doc.sections?.[key])
                           .map(key => (
-                            <div key={key} style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: doc.sections[key] }} />
+                            <div key={key} style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[key], sigData) }} />
                           ));
                       })()}
                     </div>
@@ -379,12 +386,18 @@ export default function PdfPreviewPage() {
                       const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
                       const docSectionKeys = Object.keys(doc.sections || {});
                       const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+                      const sigData = {
+                        mgrSignature: mgrAppr?.signaturePath ?? null,
+                        mgrApprover: mgrAppr?.actorName ?? null,
+                        pimpinanSignature: pimpAppr?.signaturePath ?? null,
+                        pimpinanApprover: pimpAppr?.actorName ?? null,
+                      };
                       return allKeys
                         .filter(key => doc.sections?.[key])
                         .map(key => (
                           <div key={key} style={{ marginBottom: 16 }}>
                             <h4>{getSectionLabel(key, doc.jenis).toUpperCase()}</h4>
-                            <div dangerouslySetInnerHTML={{ __html: doc.sections[key] }} />
+                            <div dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[key], sigData) }} />
                           </div>
                         ));
                     })()}

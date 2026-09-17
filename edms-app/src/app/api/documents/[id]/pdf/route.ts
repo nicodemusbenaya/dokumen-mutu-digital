@@ -1,3 +1,5 @@
+import path from 'path';
+import fs from 'fs/promises';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest, unauthorized } from '@/lib/auth';
 import { query } from '@/lib/db';
@@ -49,6 +51,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Build base URL for signature images
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
+  // Muat gambar tanda tangan ke base64 agar zero latency dan offline-safe di Puppeteer
+  let mgrSignatureDataUrl: string | null = null;
+  if (mgrApproval?.signature_path) {
+    try {
+      const cleanPath = mgrApproval.signature_path.replace(/^\//, '');
+      const filePath = path.join(process.cwd(), 'public', cleanPath);
+      const fileBuf = await fs.readFile(filePath);
+      mgrSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
+    } catch {
+      mgrSignatureDataUrl = `${baseUrl}${mgrApproval.signature_path}`;
+    }
+  }
+
+  let pimpinanSignatureDataUrl: string | null = null;
+  if (pimpinanApproval?.signature_path) {
+    try {
+      const cleanPath = pimpinanApproval.signature_path.replace(/^\//, '');
+      const filePath = path.join(process.cwd(), 'public', cleanPath);
+      const fileBuf = await fs.readFile(filePath);
+      pimpinanSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
+    } catch {
+      pimpinanSignatureDataUrl = `${baseUrl}${pimpinanApproval.signature_path}`;
+    }
+  }
+
   const pdfData: PdfDocumentData = {
     kode:     doc.kode,
     judul:    doc.judul,
@@ -61,11 +88,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     refs,
     penyusun: doc.penyusun_name,
     mgrApprover:       mgrApproval?.actor_name ?? null,
-    mgrSignature:      mgrApproval?.signature_path
-      ? `${baseUrl}${mgrApproval.signature_path}` : null,
+    mgrSignature:      mgrSignatureDataUrl,
     pimpinanApprover:  pimpinanApproval?.actor_name ?? null,
-    pimpinanSignature: pimpinanApproval?.signature_path
-      ? `${baseUrl}${pimpinanApproval.signature_path}` : null,
+    pimpinanSignature: pimpinanSignatureDataUrl,
   };
 
   try {
