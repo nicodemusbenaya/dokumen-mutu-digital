@@ -4,6 +4,40 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Document, DocumentDetail } from '@/types';
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
+import { IconEditor, IconDownload } from '@/components/icons/Icons';
+import Image from 'next/image';
+
+const FORMULIR_TYPES = new Set([
+  'BA Pemusnahan Rekaman',
+  'Pernyataan Kerahasiaan',
+  'Daftar Rekaman Mutu',
+  'Formulir Kerja',
+  'Formulir Tambahan'
+]);
+
+const FORMULIR_OFFICIAL_HEADERS: Record<string, { title: string; formNo: string }> = {
+  'BA Pemusnahan Rekaman': {
+    title: 'FORMULIR BERITA ACARA<br>PEMUSNAHAN REKAMAN MUTU',
+    formNo: 'FR.UPS.SER3.BMK.01.05-00'
+  },
+  'Pernyataan Kerahasiaan': {
+    title: 'FORMULIR PERNYATAAN KERAHASIAAN',
+    formNo: 'FR.UPS.SER3.BMK.01.06-00'
+  },
+  'Daftar Rekaman Mutu': {
+    title: 'DAFTAR REKAMAN MUTU',
+    formNo: 'FR.UPS.SER3.BSB.01.07-00'
+  },
+  'Formulir Kerja': {
+    title: 'FORMULIR REKAMAN MUTU STANDAR',
+    formNo: 'FR.UPS.SER3.BMK.01.04-00'
+  },
+  'Formulir Tambahan': {
+    title: 'FORMULIR REKAMAN MUTU TAMBAHAN',
+    formNo: 'FR.UPS.SER3.BMK.01.XX-00'
+  }
+};
 
 export default function PdfPreviewPage() {
   const searchParams = useSearchParams();
@@ -123,7 +157,8 @@ export default function PdfPreviewPage() {
 
           {doc && (
             <Link href={`/editor/${doc.id}`} className="btn btn-outline btn-sm">
-              ✏️ Edit
+              <IconEditor size={15} />
+              <span>Edit Dokumen</span>
             </Link>
           )}
 
@@ -132,7 +167,8 @@ export default function PdfPreviewPage() {
             onClick={handleDownloadPdf}
             disabled={downloading || !doc}
           >
-            {downloading ? 'Menyiapkan PDF...' : '🖨️ Cetak / Simpan PDF'}
+            <IconDownload size={15} />
+            <span>{downloading ? 'Menyiapkan PDF...' : 'Cetak / Simpan PDF'}</span>
           </button>
         </div>
       </div>
@@ -155,73 +191,221 @@ export default function PdfPreviewPage() {
               <div className="pdf-draft-badge">DRAFT · {doc.status.toUpperCase()}</div>
             )}
 
-            {/* Kop Surat */}
-            <div className="pdf-kop">
-              <div className="pdf-kop-logo">⚡</div>
-              <div className="pdf-kop-text">
-                <h3>PLN UP SERTIFIKASI</h3>
-                <p>SISTEM MANAJEMEN TERINTEGRASI — DOKUMEN MUTU</p>
-              </div>
-            </div>
+            {(() => {
+              const isFormulir = FORMULIR_TYPES.has(doc.jenis);
+              const formHeader = FORMULIR_OFFICIAL_HEADERS[doc.jenis] || {
+                title: `FORMULIR ${doc.judul.toUpperCase()}`,
+                formNo: doc.kode
+              };
+              const formattedDate = doc.updatedAt
+                ? new Date(doc.updatedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
+                : '-';
 
-            {/* Metadata Table */}
-            <table className="pdf-meta-table">
-              <tbody>
-                <tr>
-                  <td>Kode Dokumen</td>
-                  <td><strong>{doc.kode}</strong></td>
-                  <td>Versi</td>
-                  <td>v{doc.currentVersion || (doc as any).current_version}</td>
-                </tr>
-                <tr>
-                  <td>Jenis Dokumen</td>
-                  <td>{doc.jenis}</td>
-                  <td>Status</td>
-                  <td><strong>{doc.status}</strong></td>
-                </tr>
-                <tr>
-                  <td>Bidang Pemilik</td>
-                  <td>{doc.bidang}</td>
-                  <td>Tanggal Terbit / Update</td>
-                  <td>{doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}</td>
-                </tr>
-              </tbody>
-            </table>
+              if (isFormulir) {
+                return (
+                  <>
+                    {/* Kop Formulir Kotak 3-Kolom Baku PLN UP Sertifikasi */}
+                    <table className="kop-formulir-table">
+                      <tbody>
+                        <tr>
+                          <td className="kop-form-logo">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <Image src="/images/logo-danantara.svg" alt="Danantara" width={100} height={24} style={{ height: 24, width: 'auto' }} />
+                              <Image src="/images/logo-pln.png" alt="PLN" width={28} height={28} style={{ height: 28, width: 'auto' }} />
+                            </div>
+                            <div style={{ fontSize: 10.5, fontWeight: 800, color: '#0B192C', lineHeight: 1.25 }}>
+                              PT PLN (PERSERO)<br />UNIT PELAKSANA SERTIFIKASI
+                            </div>
+                          </td>
+                          <td className="kop-form-title">
+                            <div dangerouslySetInnerHTML={{ __html: formHeader.title }} />
+                          </td>
+                          <td className="kop-form-meta">
+                            <div><strong>Nomor:</strong> {formHeader.formNo}</div>
+                            <div><strong>Tanggal:</strong> {formattedDate}</div>
+                            <div><strong>Halaman:</strong> 1 dari 1</div>
+                            <div><strong>Status:</strong> {doc.status === 'Aktif' ? 'Controlled' : doc.status}</div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
 
-            {/* Title */}
-            <div className="pdf-title">{doc.judul.toUpperCase()}</div>
+                    {/* Formulir Body mengalir presisi tanpa judul bab h4 */}
+                    <div className="pdf-body">
+                      {(() => {
+                        const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
+                        const docSectionKeys = Object.keys(doc.sections || {});
+                        const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+                        return allKeys
+                          .filter(key => doc.sections?.[key])
+                          .map(key => (
+                            <div key={key} style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: doc.sections[key] }} />
+                          ));
+                      })()}
+                    </div>
+                  </>
+                );
+              }
 
-            {/* Content Sections */}
-            <div className="pdf-body">
-              <h4>1. TUJUAN</h4>
-              <div dangerouslySetInnerHTML={{ __html: doc.sections?.tujuan || '<p>— Belum diisi —</p>' }} />
-
-              <h4>2. RUANG LINGKUP</h4>
-              <div dangerouslySetInnerHTML={{ __html: doc.sections?.ruang_lingkup || '<p>— Belum diisi —</p>' }} />
-
-              <h4>3. DEFINISI & ISTILAH</h4>
-              <div dangerouslySetInnerHTML={{ __html: doc.sections?.definisi || '<p>— Belum diisi —</p>' }} />
-
-              <h4>4. PROSEDUR PELAKSANAAN</h4>
-              <div dangerouslySetInnerHTML={{ __html: doc.sections?.prosedur || '<p>— Belum diisi —</p>' }} />
-
-              <h4>5. LAMPIRAN</h4>
-              <div dangerouslySetInnerHTML={{ __html: doc.sections?.lampiran || '<p>— Tidak ada lampiran —</p>' }} />
-
-              {/* Referensi Terkait */}
-              {doc.refs && doc.refs.length > 0 && (
+              // Untuk SOP / Prosedur / IK / Manual Mutu
+              return (
                 <>
-                  <h4>6. REFERENSI & STANDAR TERKAIT</h4>
-                  <ul style={{ paddingLeft: 22, marginTop: 8 }}>
-                    {doc.refs.map(r => (
-                      <li key={r.id} style={{ fontSize: 13, marginBottom: 4 }}>
-                        <strong>[{r.kategori}] {r.nomor}</strong> — {r.judul}
-                      </li>
-                    ))}
-                  </ul>
+                  {/* Kop Surat Resmi Standard */}
+                  <div className="pdf-kop">
+                    <div className="pdf-kop-left">
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Image
+                          src="/images/logo-danantara.svg"
+                          alt="Logo Danantara Indonesia"
+                          width={130}
+                          height={32}
+                          className="pdf-kop-logo-img"
+                          style={{ height: 32, width: 'auto' }}
+                        />
+                      </div>
+                      <div className="pdf-kop-divider" />
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Image
+                          src="/images/logo-pln.png"
+                          alt="Logo PLN"
+                          width={36}
+                          height={36}
+                          className="pdf-kop-logo-img"
+                          style={{ height: 36, width: 'auto' }}
+                        />
+                      </div>
+                      <div className="pdf-kop-text">
+                        <h3>PT PLN (PERSERO) UNIT PELAKSANA SERTIFIKASI</h3>
+                        <p>SISTEM MANAJEMEN TERINTEGRASI — DOKUMEN MUTU TERKENDALI</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metadata Table */}
+                  <table className="pdf-meta-table">
+                    <tbody>
+                      <tr>
+                        <td>Kode Dokumen</td>
+                        <td><strong>{doc.kode}</strong></td>
+                        <td>Versi</td>
+                        <td>v{doc.currentVersion || (doc as any).current_version}</td>
+                      </tr>
+                      <tr>
+                        <td>Jenis Dokumen</td>
+                        <td>{doc.jenis}</td>
+                        <td>Status</td>
+                        <td><strong>{doc.status}</strong></td>
+                      </tr>
+                      <tr>
+                        <td>Bidang Pemilik</td>
+                        <td>{doc.bidang}</td>
+                        <td>Tanggal Terbit / Update</td>
+                        <td>{formattedDate}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Title */}
+                  <div className="pdf-title">{doc.judul.toUpperCase()}</div>
+
+                  {/* Lembar Pengesahan Resmi */}
+                  <div style={{ margin: '18px 0 16px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.02em', marginBottom: 6 }}>LEMBAR PENGESAHAN</div>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 8 }}>Jakarta, {formattedDate}</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <tbody>
+                        <tr>
+                          <td style={{ width: '50%', textAlign: 'center', padding: '10px 14px', border: '1px solid #334155' }}>
+                            <div style={{ fontWeight: 700, fontSize: 12 }}>Disusun Oleh:</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Manager Bidang Terkait</div>
+                            <div style={{ height: 46, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {mgrAppr?.signaturePath ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={mgrAppr.signaturePath} alt="TTD Manager" style={{ maxHeight: 44, maxWidth: 120 }} />
+                              ) : (
+                                <span style={{ color: '#94A3B8' }}>—</span>
+                              )}
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: 12, marginTop: 4 }}>{mgrAppr?.actorName || '( ..................................... )'}</div>
+                          </td>
+                          <td style={{ width: '50%', textAlign: 'center', padding: '10px 14px', border: '1px solid #334155' }}>
+                            <div style={{ fontWeight: 700, fontSize: 12 }}>Disahkan Oleh:</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Senior Manager UPS</div>
+                            <div style={{ height: 46, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {pimpAppr?.signaturePath ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={pimpAppr.signaturePath} alt="TTD Pimpinan" style={{ maxHeight: 44, maxWidth: 120 }} />
+                              ) : (
+                                <span style={{ color: '#94A3B8' }}>—</span>
+                              )}
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: 12, marginTop: 4 }}>{pimpAppr?.actorName || '( ..................................... )'}</div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Riwayat Perubahan Resmi 6-Kolom */}
+                  <div style={{ margin: '16px 0 24px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.02em', marginBottom: 6 }}>RIWAYAT PERUBAHAN</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                      <thead>
+                        <tr style={{ background: '#F1F5F9' }}>
+                          <th style={{ width: '6%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>No</th>
+                          <th style={{ width: '14%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Tanggal</th>
+                          <th style={{ width: '10%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Halaman</th>
+                          <th style={{ width: '32%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Uraian yang Diubah</th>
+                          <th style={{ width: '28%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Uraian Perubahan</th>
+                          <th style={{ width: '10%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Revisi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>1</td>
+                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>{formattedDate}</td>
+                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>Semua</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #475569' }}>Penerbitan Dokumen Mutu</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #475569' }}>Dokumen Mutu Terkendali Resmi Terbit di EDMS</td>
+                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>v{doc.currentVersion || (doc as any).current_version}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Content Sections */}
+                  <div className="pdf-body">
+                    {(() => {
+                      const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
+                      const docSectionKeys = Object.keys(doc.sections || {});
+                      const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+                      return allKeys
+                        .filter(key => doc.sections?.[key])
+                        .map(key => (
+                          <div key={key} style={{ marginBottom: 16 }}>
+                            <h4>{getSectionLabel(key, doc.jenis).toUpperCase()}</h4>
+                            <div dangerouslySetInnerHTML={{ __html: doc.sections[key] }} />
+                          </div>
+                        ));
+                    })()}
+
+                    {/* Referensi Terkait */}
+                    {doc.refs && doc.refs.length > 0 && (
+                      <>
+                        <h4>6. REFERENSI & STANDAR TERKAIT</h4>
+                        <ul style={{ paddingLeft: 22, marginTop: 8 }}>
+                          {doc.refs.map(r => (
+                            <li key={r.id} style={{ fontSize: 13, marginBottom: 4 }}>
+                              <strong>[{r.kategori}] {r.nomor}</strong> — {r.judul}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 </>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Signature Block */}
             <div className="pdf-sig-row">

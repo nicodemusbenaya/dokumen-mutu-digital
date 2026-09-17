@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { Document, DocumentDetail } from '@/types';
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
+import { IconPlus, IconSearch, IconPdf, IconDocuments, IconEditor } from '@/components/icons/Icons';
 
 export default function ManagePage() {
   const searchParams = useSearchParams();
@@ -97,34 +99,40 @@ export default function ManagePage() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div className="page-title">Manajemen Dokumen</div>
+          <div className="page-title">Peta Dokumen Terkendali</div>
           <p className="page-sub" style={{ marginBottom: 0 }}>
-            Telusuri dokumen per bidang, buka isi, lihat riwayat versi, atau unduh PDF.
+            Peta hierarki pohon dokumen mutu per bidang kerja. Telusuri klausul isi dokumen, riwayat versi, atau cetak PDF resmi.
           </p>
         </div>
         <Link href="/editor/new" className="btn btn-primary">
-          ＋ Dokumen Baru
+          <IconPlus size={16} />
+          <span>Buat Dokumen Baru</span>
         </Link>
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <input
-          style={{
-            width: '100%',
-            padding: '11px 16px',
-            border: '1.5px solid var(--paper-line)',
-            borderRadius: 'var(--r-md)',
-            fontSize: 13.5,
-            outline: 'none',
-            background: 'var(--card)',
-            color: 'var(--ink)'
-          }}
-          placeholder="🔍 Cari kode, judul, atau bidang dokumen..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <span style={{ position: 'absolute', left: 14, color: 'var(--ink-muted)', pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+            <IconSearch size={16} />
+          </span>
+          <input
+            style={{
+              width: '100%',
+              padding: '10px 16px 10px 40px',
+              border: '1px solid var(--paper-line-dark)',
+              borderRadius: 'var(--r-md)',
+              fontSize: 13,
+              outline: 'none',
+              background: 'var(--card)',
+              color: 'var(--ink)'
+            }}
+            placeholder="Cari kode dokumen, judul SOP/IK, atau nama bidang kerja..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="manage-layout">
@@ -136,7 +144,7 @@ export default function ManagePage() {
             </div>
           ) : Object.keys(groupedDocs).length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-muted)', fontSize: 13 }}>
-              Tidak ada dokumen yang sesuai
+              Tidak ada dokumen yang sesuai filter
             </div>
           ) : (
             Object.entries(groupedDocs).map(([bidang, bDocs]) => {
@@ -144,10 +152,10 @@ export default function ManagePage() {
               return (
                 <div key={bidang} className={`tree-group ${isCollapsed ? 'collapsed' : ''}`}>
                   <div className="tree-group-head" onClick={() => toggleBidang(bidang)}>
-                    <span className="chev">▼</span>
+                    <span className="chev" style={{ fontSize: 10 }}>▼</span>
                     <span>{bidang}</span>
-                    <span style={{ marginLeft: 'auto', color: 'var(--ink-soft)', fontWeight: 400, fontSize: 12 }}>
-                      {bDocs.length}
+                    <span style={{ marginLeft: 'auto', color: 'var(--ink-muted)', fontWeight: 600, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                      {bDocs.length} dok
                     </span>
                   </div>
                   <div className="tree-children">
@@ -157,10 +165,16 @@ export default function ManagePage() {
                         className={`tree-item ${d.id === selectedId ? 'selected' : ''}`}
                         onClick={() => setSelectedId(d.id)}
                       >
-                        <span className={`dot ${getDotClass(d.status)}`}></span>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <strong>{d.kode}</strong> - {d.judul}
-                        </span>
+                        <span className={`dot ${getDotClass(d.status)}`} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: 11.5, fontWeight: 700 }}>
+                            {d.kode}
+                          </div>
+                          <div style={{ fontSize: 12, opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {d.judul}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 10.5, opacity: 0.65, fontVariantNumeric: 'tabular-nums' }}>v{d.currentVersion || (d as any).current_version || '1.0'}</span>
                       </div>
                     ))}
                   </div>
@@ -179,9 +193,9 @@ export default function ManagePage() {
           ) : selectedDoc ? (
             <>
               <div className="doc-detail-head">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                   <div>
-                    <div className="dcode">
+                    <div className="dcode" style={{ fontFamily: 'var(--mono)' }}>
                       <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{selectedDoc.kode}</span> · v{selectedDoc.currentVersion || (selectedDoc as any).current_version} ·{' '}
                       <span className={`badge badge-${selectedDoc.status === 'Aktif' ? 'aktif' : selectedDoc.status === 'Review' ? 'review' : selectedDoc.status === 'Menunggu Approval' ? 'approval' : 'draft'}`} style={{ fontSize: 10.5 }}>
                         {selectedDoc.status}
@@ -191,15 +205,18 @@ export default function ManagePage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     <Link href={`/editor/${selectedDoc.id}`} className="btn btn-outline btn-sm">
-                      ✏️ Edit Dokumen
+                      <IconEditor size={14} />
+                      <span>Edit Dokumen</span>
                     </Link>
                     <Link href={`/pdf?id=${selectedDoc.id}`} className="btn btn-ghost btn-sm">
-                      📑 Cetak / PDF
+                      <IconPdf size={14} />
+                      <span>Cetak PDF</span>
                     </Link>
                     <Link href={`/documents/${selectedDoc.id}`} className="btn btn-primary btn-sm">
-                      🔍 Lihat Lengkap
+                      <IconDocuments size={14} />
+                      <span>Lihat Lengkap</span>
                     </Link>
                   </div>
                 </div>
@@ -209,19 +226,19 @@ export default function ManagePage() {
                     className={`tab-btn ${activeTab === 'isi' ? 'active' : ''}`}
                     onClick={() => setActiveTab('isi')}
                   >
-                    📄 Isi Dokumen
+                    Isi & Klausul Dokumen
                   </button>
                   <button
                     className={`tab-btn ${activeTab === 'riwayat' ? 'active' : ''}`}
                     onClick={() => setActiveTab('riwayat')}
                   >
-                    ⏱ Riwayat Versi
+                    Riwayat Revisi Versi
                   </button>
                   <button
                     className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`}
                     onClick={() => setActiveTab('info')}
                   >
-                    ℹ️ Info & Metadata
+                    Metadata & Standard Mutu
                   </button>
                 </div>
               </div>
@@ -231,25 +248,24 @@ export default function ManagePage() {
                   <div>
                     {selectedDoc.sections && Object.keys(selectedDoc.sections).length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        {[
-                          { key: 'tujuan', label: '1. Tujuan' },
-                          { key: 'ruang_lingkup', label: '2. Ruang Lingkup' },
-                          { key: 'definisi', label: '3. Definisi & Istilah' },
-                          { key: 'prosedur', label: '4. Prosedur' },
-                          { key: 'lampiran', label: '5. Lampiran' },
-                        ].map(sec => (
-                          <div key={sec.key} style={{ background: 'var(--paper)', padding: '16px 20px', borderRadius: 'var(--r-md)', border: '1px solid var(--paper-line)' }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 8 }}>
-                              {sec.label}
+                        {(() => {
+                          const typeSections = (DOCUMENT_SECTIONS[selectedDoc.jenis as DocumentType] || []).map(s => s.key);
+                          const docSectionKeys = Object.keys(selectedDoc.sections || {});
+                          const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+                          return allKeys.map(secKey => (
+                            <div key={secKey} style={{ background: 'var(--paper)', padding: '16px 20px', borderRadius: 'var(--r-md)', border: '1px solid var(--paper-line)' }}>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 8 }}>
+                                {getSectionLabel(secKey, selectedDoc.jenis)}
+                              </div>
+                              <div
+                                style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink)' }}
+                                dangerouslySetInnerHTML={{
+                                  __html: selectedDoc.sections[secKey] || '<span style="color:var(--ink-muted);font-style:italic">Belum ada isi seksi ini.</span>'
+                                }}
+                              />
                             </div>
-                            <div
-                              style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink)' }}
-                              dangerouslySetInnerHTML={{
-                                __html: selectedDoc.sections[sec.key] || '<span style="color:var(--ink-muted);font-style:italic">Belum ada isi seksi ini.</span>'
-                              }}
-                            />
-                          </div>
-                        ))}
+                          ));
+                        })()}
                       </div>
                     ) : (
                       <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink-muted)' }}>

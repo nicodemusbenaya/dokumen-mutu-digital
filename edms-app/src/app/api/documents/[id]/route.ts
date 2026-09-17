@@ -67,7 +67,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (isNaN(docId)) return NextResponse.json({ error: 'ID tidak valid.' }, { status: 400 });
 
   const body = await req.json();
-  const { judul, bidang, jenis, siklusReview, sections, versionNumber } = body;
+  const { judul, bidang, jenis, siklusReview, sections, refIds, versionNumber } = body;
 
   // Ambil dokumen current
   const rows = await query<any[]>('SELECT * FROM documents WHERE id = ?', [docId]);
@@ -88,48 +88,63 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }, { status: 409 });
   }
 
-  await withTransaction(async (conn) => {
-    // Update dokumen header
-    await conn.execute(
-      `UPDATE documents
-       SET judul = ?, bidang = ?, jenis = ?, siklus_review = ?,
-           version_number = version_number + 1, updated_at = NOW()
-       WHERE id = ?`,
-      [
-        judul       ?? doc.judul,
-        bidang      ?? doc.bidang,
-        jenis       ?? doc.jenis,
-        siklusReview ?? doc.siklus_review,
-        docId,
-      ]
-    );
+  try {
+    await withTransaction(async (conn) => {
+      // Update dokumen header
+      await conn.execute(
+        `UPDATE documents
+         SET judul = ?, bidang = ?, jenis = ?, siklus_review = ?,
+             version_number = version_number + 1, updated_at = NOW()
+         WHERE id = ?`,
+        [
+          judul       ?? doc.judul,
+          bidang      ?? doc.bidang,
+          jenis       ?? doc.jenis,
+          siklusReview ?? doc.siklus_review,
+          docId,
+        ]
+      );
 
-    // Update sections
-    if (sections && typeof sections === 'object') {
-      for (const [key, content] of Object.entries(sections)) {
-        await conn.execute(
-          `INSERT INTO document_sections (document_id, section_key, content)
-           VALUES (?, ?, ?)
-           ON DUPLICATE KEY UPDATE content = VALUES(content)`,
-          [docId, key, content as string]
-        );
+      // Update sections
+      if (sections && typeof sections === 'object') {
+        for (const [key, content] of Object.entries(sections)) {
+          await conn.execute(
+            `INSERT INTO document_sections (document_id, section_key, content)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE content = VALUES(content)`,
+            [docId, key, content as string]
+          );
+        }
       }
-    }
-  });
 
-  await addAuditLog(user, 'UPDATE', {
-    documentId: docId,
-    docKode:    doc.kode,
-    note:       'Draft diperbarui',
-  });
+      // Update references
+      if (Array.isArray(refIds)) {
+        await conn.execute('DELETE FROM document_references WHERE document_id = ?', [docId]);
+        for (const refId of refIds) {
+          await conn.execute(
+            'INSERT INTO document_references (document_id, reference_id) VALUES (?, ?)',
+            [docId, refId]
+          );
+        }
+      }
+    });
 
-  // Kembalikan version_number baru
-  const updated = await query<any[]>('SELECT version_number FROM documents WHERE id = ?', [docId]);
+    await addAuditLog(user, 'UPDATE', {
+      documentId: docId,
+      docKode:    doc.kode,
+      note:       'Draft diperbarui',
+    });
 
-  return NextResponse.json({
-    data:    { versionNumber: updated[0]?.version_number },
-    message: 'Dokumen berhasil disimpan.',
-  });
+    // Kembalikan version_number baru
+    const updated = await query<any[]>('SELECT version_number FROM documents WHERE id = ?', [docId]);
+
+    return NextResponse.json({
+      data:    { versionNumber: updated[0]?.version_number },
+      message: 'Dokumen berhasil disimpan.',
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Gagal menyimpan perubahan dokumen.' }, { status: 500 });
+  }
 }
 
 // ─── DELETE /api/documents/[id] ───────────────────────────────

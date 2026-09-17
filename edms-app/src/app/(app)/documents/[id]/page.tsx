@@ -1,18 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import SignaturePad from 'signature_pad';
 import type { DocumentDetail, Approval } from '@/types';
-
-const SECTIONS = [
-  { key: 'tujuan',        label: '1. Tujuan' },
-  { key: 'ruang_lingkup', label: '2. Ruang Lingkup' },
-  { key: 'definisi',      label: '3. Definisi & Istilah' },
-  { key: 'prosedur',      label: '4. Prosedur' },
-  { key: 'lampiran',      label: '5. Lampiran' },
-];
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
+import { IconArrowLeft, IconEditor, IconApproval, IconPdf, IconCheck } from '@/components/icons/Icons';
 
 const STATUS_CLASS: Record<string, string> = {
   'Draft':'draft','Review':'review','Menunggu Approval':'approval','Aktif':'aktif','Obsolete':'obsolete',
@@ -79,17 +73,17 @@ export default function DocumentDetailPage() {
 
   async function handleApprove() {
     setApproving(true);
-    const signatureData = sigPadRef.current && !sigPadRef.current.isEmpty()
-      ? sigPadRef.current.toDataURL('image/png')
-      : undefined;
-
+    let signatureData: string | null = null;
+    if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+      signatureData = sigPadRef.current.toDataURL();
+    }
     const res = await fetch(`/api/documents/${docId}/approve`, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        stage: approvalStage,
         action: approvalAction,
-        stage:  approvalStage,
-        note:   approvalNote,
+        note: approvalNote,
         signatureData,
       }),
     });
@@ -103,12 +97,13 @@ export default function DocumentDetailPage() {
       notify(json.error, 'err');
     }
   }
+  const handleApproval = handleApprove;
 
   async function handleGeneratePdf() {
     const res = await fetch(`/api/documents/${docId}/pdf`, { method: 'POST' });
     const json = await res.json();
     if (res.ok) {
-      notify('PDF berhasil dibuat! 🖨️');
+      notify('PDF dokumen berhasil digenerate.');
       window.open(json.data.url, '_blank');
     } else {
       notify(json.error, 'err');
@@ -141,23 +136,36 @@ export default function DocumentDetailPage() {
       )}
 
       {/* Header */}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:22}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, flexWrap: 'wrap', gap: 14 }}>
         <div>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
-            <Link href="/documents" style={{fontSize:13,color:'var(--ink-soft)'}}>← Kembali</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Link href="/documents" className="btn btn-ghost btn-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <IconArrowLeft size={13} />
+              <span>Kembali ke Daftar</span>
+            </Link>
           </div>
-          <div style={{fontFamily:'var(--serif)',fontSize:22,fontWeight:700}}>{doc.judul}</div>
-          <div style={{display:'flex',gap:10,marginTop:6,flexWrap:'wrap'}}>
-            <code style={{fontSize:13,background:'var(--paper)',padding:'2px 10px',borderRadius:20,color:'var(--navy)',fontWeight:700,border:'1px solid var(--paper-line)'}}>{doc.kode}</code>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.01em' }}>{doc.judul}</div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <code style={{ fontSize: 12.5, background: 'var(--paper)', padding: '3px 10px', borderRadius: 6, color: 'var(--ink)', fontWeight: 700, border: '1px solid var(--paper-line)', fontFamily: 'var(--mono)' }}>
+              {doc.kode}
+            </code>
             <span className={`badge badge-${STATUS_CLASS[doc.status] ?? 'draft'}`}>{doc.status}</span>
-            <span style={{fontSize:12,color:'var(--ink-soft)'}}>v{doc.currentVersion || (doc as any).current_version} · {doc.jenis} · {doc.bidang}</span>
+            <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              v{doc.currentVersion || (doc as any).current_version} · {doc.jenis} · {doc.bidang}
+            </span>
           </div>
         </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
           {doc.status === 'Draft' && (
             <>
-              <Link href={`/editor/${doc.id}`} className="btn btn-outline btn-sm">✏️ Edit</Link>
-              <button className="btn btn-amber btn-sm" onClick={handleSubmit}>📤 Ajukan Review</button>
+              <Link href={`/editor/${doc.id}`} className="btn btn-outline btn-sm">
+                <IconEditor size={14} />
+                <span>Edit Dokumen</span>
+              </Link>
+              <button className="btn btn-amber btn-sm" onClick={handleSubmit}>
+                <IconApproval size={14} />
+                <span>Ajukan Review</span>
+              </button>
             </>
           )}
           {(doc.status === 'Review' || doc.status === 'Menunggu Approval' || doc.status === 'Aktif') && (
@@ -169,18 +177,31 @@ export default function DocumentDetailPage() {
                 setApprovalOpen(true);
               }}
             >
-              ✍️ Berikan Approval
+              <IconApproval size={14} />
+              <span>Berikan Approval</span>
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={handleGeneratePdf}>🖨️ Generate PDF</button>
+          <button className="btn btn-ghost btn-sm" onClick={handleGeneratePdf}>
+            <IconPdf size={14} />
+            <span>Generate PDF</span>
+          </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="tab-bar">
-        {['isi','refs','workflow','versi'].map(t => (
-          <button key={t} className={`tab-btn ${tab===t?'active':''}`} onClick={() => setTab(t)}>
-            {t === 'isi' ? '📄 Isi Dokumen' : t === 'refs' ? '📚 Referensi' : t === 'workflow' ? '✅ Workflow' : '🗂 Riwayat Versi'}
+        {[
+          { id: 'isi', label: 'Isi Klausul Dokumen' },
+          { id: 'refs', label: 'Referensi Standard' },
+          { id: 'workflow', label: 'Workflow & Pengesahan' },
+          { id: 'versi', label: 'Riwayat Versi' },
+        ].map(t => (
+          <button
+            key={t.id}
+            className={`tab-btn ${tab === t.id ? 'active' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
           </button>
         ))}
       </div>
@@ -188,16 +209,28 @@ export default function DocumentDetailPage() {
       {/* Tab: Isi */}
       {tab === 'isi' && (
         <div className="card card-body">
-          {SECTIONS.map(sec => (
-            <div key={sec.key} style={{marginBottom:22}}>
-              <div style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:15,color:'var(--navy)',marginBottom:8,paddingBottom:6,borderBottom:'2px solid var(--paper-line)'}}>{sec.label}</div>
-              {doc.sections[sec.key] ? (
-                <div dangerouslySetInnerHTML={{__html: doc.sections[sec.key]}} style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}} />
-              ) : (
-                <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>Belum diisi</div>
-              )}
-            </div>
-          ))}
+          {(() => {
+            const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
+            const docSectionKeys = Object.keys(doc.sections || {});
+            const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+            
+            if (allKeys.length === 0) {
+              return <div style={{textAlign:'center',color:'var(--ink-muted)',padding:40}}>Belum ada isi bagian dokumen</div>;
+            }
+
+            return allKeys.map(secKey => (
+              <div key={secKey} style={{marginBottom:22}}>
+                <div style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:15,color:'var(--navy)',marginBottom:8,paddingBottom:6,borderBottom:'2px solid var(--paper-line)'}}>
+                  {getSectionLabel(secKey, doc.jenis)}
+                </div>
+                {doc.sections?.[secKey] ? (
+                  <div dangerouslySetInnerHTML={{__html: doc.sections[secKey]}} style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}} />
+                ) : (
+                  <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>— Belum diisi —</div>
+                )}
+              </div>
+            ));
+          })()}
         </div>
       )}
 

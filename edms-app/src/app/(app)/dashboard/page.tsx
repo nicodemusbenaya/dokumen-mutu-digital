@@ -1,6 +1,13 @@
 import { getSession } from '@/lib/auth';
 import { query } from '@/lib/db';
 import Link from 'next/link';
+import {
+  IconDocuments,
+  IconCheck,
+  IconApproval,
+  IconEditor,
+  IconAudit,
+} from '@/components/icons/Icons';
 
 export const metadata = { title: 'Dashboard — EDMS PLN UPS' };
 
@@ -43,75 +50,102 @@ export default async function DashboardPage() {
 
   const stats = statsRows[0] ?? { total: 0, aktif: 0, draft: 0, pending: 0 };
 
-  const ACTION_ICONS: Record<string,string> = {
-    CREATE:'📝',SUBMIT:'📤',REVIEW:'👁',APPROVE:'✅',
-    REJECT:'↩',PUBLISH:'🎉',GENERATE:'🖨️',LOGIN:'🔐',LOGOUT:'🚪',UPDATE:'✏️',
-  };
-
   return (
     <>
-      <div className="page-title">Dashboard</div>
-      <p className="page-sub">Selamat datang, <strong>{session?.fullName}</strong>. Ringkasan kondisi dokumen mutu unit.</p>
+      <div className="page-title">Dashboard Mutu</div>
+      <p className="page-sub">
+        Selamat datang, <strong>{session?.fullName}</strong>. Ringkasan kondisi dokumen mutu terkendali unit.
+      </p>
 
       {dbError && (
-        <div style={{background:'#FEF3C7',border:'1.5px solid #F59E0B',borderRadius:'var(--r-md)',padding:'14px 18px',marginBottom:20,fontSize:13.5,color:'#92400E'}}>
-          <strong>⚠️ Perhatian: Database MariaDB belum terhubung</strong> ({dbError}).<br />
-          Pastikan service MariaDB aktif di port sesuai konfigurasi <code>.env.local</code> dan schema database telah diimport:
-          <pre style={{background:'rgba(0,0,0,0.06)',padding:'8px 12px',borderRadius:6,marginTop:8,fontFamily:'monospace',fontSize:12}}>
-mysql -u [user] -p edms_ups &lt; sql/001_schema.sql<br />
-mysql -u [user] -p edms_ups &lt; sql/002_seed.sql
-          </pre>
+        <div style={{
+          background: '#FEF3C7',
+          border: '1px solid #F59E0B',
+          borderRadius: 'var(--r-md)',
+          padding: '14px 18px',
+          marginBottom: 20,
+          fontSize: 13,
+          color: '#92400E'
+        }}>
+          <strong>Perhatian: Database MariaDB belum terhubung</strong> ({dbError}).<br />
+          Pastikan service MariaDB aktif di port sesuai konfigurasi <code>.env.local</code>.
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="stats-grid">
-        <Link href="/documents" className="stat-card" style={{textDecoration:'none',color:'inherit'}}>
-          <div className="stat-icon">📄</div>
+        <Link href="/documents" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon" style={{ color: 'var(--pln-blue)' }}>
+            <IconDocuments size={24} />
+          </div>
           <div className="stat-value">{stats.total}</div>
-          <div className="stat-label">Total Dokumen</div>
-          <div className="stat-accent" style={{background:'var(--navy)'}}></div>
+          <div className="stat-label">Total Dokumen Mutu</div>
+          <div className="stat-accent" style={{ background: 'var(--pln-blue)' }} />
         </Link>
-        <Link href="/documents?status=Aktif" className="stat-card" style={{textDecoration:'none',color:'inherit'}}>
-          <div className="stat-icon">✅</div>
+
+        <Link href="/documents?status=Aktif" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon" style={{ color: 'var(--green)' }}>
+            <IconCheck size={24} />
+          </div>
           <div className="stat-value">{stats.aktif}</div>
-          <div className="stat-label">Dokumen Aktif</div>
-          <div className="stat-accent" style={{background:'var(--green)'}}></div>
+          <div className="stat-label">Dokumen Berstatus Aktif</div>
+          <div className="stat-accent" style={{ background: 'var(--green)' }} />
         </Link>
-        <Link href="/approval" className="stat-card" style={{textDecoration:'none',color:'inherit'}}>
-          <div className="stat-icon">⏳</div>
+
+        <Link href="/approval" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon" style={{ color: 'var(--amber)' }}>
+            <IconApproval size={24} />
+          </div>
           <div className="stat-value">{stats.pending}</div>
-          <div className="stat-label">Menunggu Approval</div>
-          <div className="stat-accent" style={{background:'var(--amber)'}}></div>
+          <div className="stat-label">Menunggu Review / Approval</div>
+          <div className="stat-accent" style={{ background: 'var(--amber)' }} />
         </Link>
-        <Link href="/documents?status=Draft" className="stat-card" style={{textDecoration:'none',color:'inherit'}}>
-          <div className="stat-icon">📝</div>
+
+        <Link href="/documents?status=Draft" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon" style={{ color: 'var(--ink-soft)' }}>
+            <IconEditor size={24} />
+          </div>
           <div className="stat-value">{stats.draft}</div>
-          <div className="stat-label">Masih Draft</div>
-          <div className="stat-accent" style={{background:'var(--ink-muted)'}}></div>
+          <div className="stat-label">Draft Dokumen Mutu</div>
+          <div className="stat-accent" style={{ background: 'var(--paper-line-dark)' }} />
         </Link>
       </div>
 
-      <div style={{display:'grid', gridTemplateColumns:'1fr 340px', gap:22}}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 22 }}>
         {/* Pending Actions */}
         <div>
-          <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>⏰ Perlu Perhatian</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <IconApproval size={17} style={{ color: 'var(--amber)' }} />
+            <span>Dokumen Perlu Tindakan</span>
+          </div>
+
           {pendingDocs.length === 0 ? (
-            <div className="card card-body" style={{textAlign:'center',color:'var(--ink-muted)',padding:40}}>
-              <div style={{fontSize:40,marginBottom:10}}>🎉</div>
-              Tidak ada dokumen yang menunggu tindakan
+            <div className="card card-body" style={{ textAlign: 'center', color: 'var(--ink-muted)', padding: '48px 24px' }}>
+              <div style={{ display: 'inline-flex', padding: 12, borderRadius: '50%', background: 'var(--green-soft)', color: 'var(--green)', marginBottom: 10 }}>
+                <IconCheck size={28} />
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-mid)' }}>Semua Dokumen Telah Diproses</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>Tidak ada dokumen yang menunggu tindakan saat ini.</div>
             </div>
           ) : (
-            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {pendingDocs.map((d: any) => (
-                <Link key={d.id} href={`/documents/${d.id}`} style={{textDecoration:'none'}}>
-                  <div className="card card-hover" style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:d.status==='Review'?'var(--navy)':'var(--amber)',flexShrink:0}}></div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:13}}>{d.kode}</div>
-                      <div style={{fontSize:12,color:'var(--ink-soft)'}}>{d.judul}</div>
+                <Link key={d.id} href={`/documents/${d.id}`} style={{ textDecoration: 'none' }}>
+                  <div className="card card-hover" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: d.status === 'Review' ? 'var(--amber)' : 'var(--pln-blue)',
+                      flexShrink: 0
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{d.kode}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.judul}
+                      </div>
                     </div>
-                    <span className={`badge badge-${d.status==='Aktif'?'aktif':d.status==='Review'?'review':d.status==='Menunggu Approval'?'approval':d.status==='Draft'?'draft':'obsolete'}`}>
+                    <span className={`badge badge-${d.status === 'Aktif' ? 'aktif' : d.status === 'Review' ? 'review' : d.status === 'Menunggu Approval' ? 'approval' : 'draft'}`}>
                       {d.status}
                     </span>
                   </div>
@@ -121,23 +155,40 @@ mysql -u [user] -p edms_ups &lt; sql/002_seed.sql
           )}
         </div>
 
-        {/* Activity */}
+        {/* Activity Feed */}
         <div>
           <div className="card">
             <div className="card-body">
-              <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>📋 Aktivitas Terbaru</div>
-              <div style={{display:'flex',flexDirection:'column'}}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <IconAudit size={17} style={{ color: 'var(--pln-blue)' }} />
+                <span>Aktivitas Dokumen Terbaru</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {recentLogs.map((log: any) => (
-                  <div key={log.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--paper-line)'}}>
-                    <div style={{width:30,height:30,borderRadius:6,background:'var(--paper)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>
-                      {ACTION_ICONS[log.action_type] || '📋'}
+                  <div key={log.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--paper-line)' }}>
+                    <div style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      background: 'var(--paper)',
+                      border: '1px solid var(--paper-line)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--pln-blue)',
+                      flexShrink: 0,
+                      marginTop: 2
+                    }}>
+                      <IconAudit size={14} />
                     </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:600,fontSize:12}}>{log.user_name}</div>
-                      <div style={{fontSize:11.5,color:'var(--ink-soft)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{log.note}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--ink)' }}>{log.user_name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {log.note}
+                      </div>
                     </div>
-                    <div style={{fontSize:10.5,color:'var(--ink-muted)',flexShrink:0}}>
-                      {new Date(log.created_at).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}
+                    <div style={{ fontSize: 10.5, color: 'var(--ink-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                      {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
                     </div>
                   </div>
                 ))}

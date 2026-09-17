@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { IconPlus, IconSearch } from '@/components/icons/Icons';
 
 export default function ReferencesPage() {
   const [refs,   setRefs]   = useState<any[]>([]);
@@ -38,7 +38,7 @@ export default function ReferencesPage() {
     if (res.ok) {
       setModal(false);
       setForm({ kategori:'Regulasi', nomor:'', judul:'', deskripsi:'' });
-      notify('Referensi berhasil ditambahkan.');
+      notify('Referensi berhasil ditambahkan ke database.');
       fetchRefs();
     } else {
       notify(json.error || 'Gagal menyimpan.');
@@ -63,27 +63,45 @@ export default function ReferencesPage() {
           <div className="notif success">{msg}</div>
         </div>
       )}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div className="page-title">Master Referensi</div>
-          <p className="page-sub" style={{marginBottom:0}}>Daftar regulasi, standar, dan referensi internal yang dapat dikaitkan ke dokumen.</p>
+          <div className="page-title">Master Referensi Standard & Regulasi</div>
+          <p className="page-sub" style={{ marginBottom: 0 }}>
+            Daftar standar ISO, undang-undang, regulasi pemerintah, dan referensi internal PLN yang dapat ditautkan ke dokumen mutu.
+          </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setModal(true)}>＋ Tambah Referensi</button>
+        <button className="btn btn-primary" onClick={() => setModal(true)}>
+          <IconPlus size={16} />
+          <span>Tambah Referensi</span>
+        </button>
       </div>
 
-      <div className="card card-body" style={{marginBottom:16,display:'flex',gap:12,padding:'12px 16px'}}>
-        <input
-          style={{flex:2,padding:'8px 12px',border:'1.5px solid var(--paper-line)',borderRadius:'var(--r-md)',fontSize:13}}
-          placeholder="🔍 Cari nomor atau judul..."
-          value={q}
-          onChange={e => setQ(e.target.value)}
-        />
+      <div className="card card-body" style={{ marginBottom: 16, display: 'flex', gap: 12, padding: '12px 16px', alignItems: 'center' }}>
+        <div style={{ flex: 2, position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <span style={{ position: 'absolute', left: 12, color: 'var(--ink-muted)', pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+            <IconSearch size={15} />
+          </span>
+          <input
+            style={{
+              width: '100%',
+              padding: '8px 12px 8px 34px',
+              border: '1px solid var(--paper-line-dark)',
+              borderRadius: 'var(--r-md)',
+              fontSize: 12.5,
+              outline: 'none',
+              background: 'var(--card)'
+            }}
+            placeholder="Cari nomor kode standar atau judul referensi..."
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
         <select
-          style={{padding:'8px 12px',border:'1.5px solid var(--paper-line)',borderRadius:'var(--r-md)',fontSize:13,background:'white'}}
+          style={{ padding: '8px 12px', border: '1px solid var(--paper-line-dark)', borderRadius: 'var(--r-md)', fontSize: 12.5, background: 'var(--card)', color: 'var(--ink)' }}
           value={kategori}
           onChange={e => setKategori(e.target.value)}
         >
-          {KATEGORI_OPTIONS.map(k => <option key={k} value={k}>{k || 'Semua Kategori'}</option>)}
+          {KATEGORI_OPTIONS.map(k => <option key={k} value={k}>{k ? `Kategori: ${k}` : 'Semua Kategori'}</option>)}
         </select>
       </div>
 
@@ -91,36 +109,46 @@ export default function ReferencesPage() {
         <table>
           <thead>
             <tr>
-              <th>Kategori</th>
-              <th>Nomor / Kode</th>
-              <th>Judul</th>
-              <th>Deskripsi</th>
-              <th>Dipakai</th>
-              <th>Aksi</th>
+              <th style={{ width: '12%' }}>Kategori</th>
+              <th style={{ width: '18%' }}>Nomor / Kode Standard</th>
+              <th style={{ width: '35%' }}>Judul Referensi</th>
+              <th>Deskripsi Singkat</th>
+              <th style={{ width: '10%', textAlign: 'center' }}>Tautan</th>
+              <th style={{ width: '10%', textAlign: 'right' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              Array.from({length:5}).map((_,i) => (
-                <tr key={i}>{Array.from({length:6}).map((_,j) => (
-                  <td key={j}><div className="skeleton" style={{height:16,width:'80%'}}></div></td>
-                ))}</tr>
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: 16, width: '80%' }} /></td>
+                  ))}
+                </tr>
               ))
             ) : refs.length === 0 ? (
-              <tr><td colSpan={6} style={{textAlign:'center',padding:40,color:'var(--ink-muted)'}}>Tidak ada referensi</td></tr>
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: 48, color: 'var(--ink-muted)' }}>
+                  Tidak ada referensi ditemukan.
+                </td>
+              </tr>
             ) : refs.map((r: any) => (
               <tr key={r.id}>
                 <td>
-                  <span className={`badge badge-${r.kategori==='Regulasi'?'review':r.kategori==='Standar'?'aktif':'draft'}`}>
+                  <span className={`badge badge-${r.kategori === 'Regulasi' ? 'review' : r.kategori === 'Standar' ? 'aktif' : 'draft'}`}>
                     {r.kategori}
                   </span>
                 </td>
-                <td style={{fontWeight:700,fontSize:13}}>{r.nomor}</td>
-                <td style={{maxWidth:300,fontSize:13}}>{r.judul}</td>
-                <td style={{fontSize:12,color:'var(--ink-soft)',maxWidth:200}}>{r.deskripsi || '—'}</td>
-                <td style={{fontSize:12,textAlign:'center'}}>{r.usage_count} dok</td>
-                <td>
-                  <button className="btn btn-xs btn-danger" onClick={() => handleDelete(r.id)}>Nonaktifkan</button>
+                <td style={{ fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--mono)' }}>{r.nomor}</td>
+                <td style={{ fontSize: 13, color: 'var(--ink)' }}>{r.judul}</td>
+                <td style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{r.deskripsi || '—'}</td>
+                <td style={{ fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                  <strong>{r.usage_count}</strong> dok
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className="btn btn-xs btn-ghost" style={{ color: 'var(--red)' }} onClick={() => handleDelete(r.id)}>
+                    Nonaktifkan
+                  </button>
                 </td>
               </tr>
             ))}
@@ -132,33 +160,33 @@ export default function ReferencesPage() {
         <div className="overlay" onClick={() => setModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">Tambah Referensi Baru</div>
+              <div className="modal-title">Tambah Referensi Standard Baru</div>
               <button className="modal-close" onClick={() => setModal(false)}>×</button>
             </div>
             <div className="field">
-              <label>Kategori *</label>
-              <select value={form.kategori} onChange={e => setForm(f=>({...f,kategori:e.target.value}))}>
+              <label>Kategori Referensi *</label>
+              <select value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}>
                 <option>Regulasi</option>
                 <option>Standar</option>
                 <option>Internal</option>
               </select>
             </div>
             <div className="field">
-              <label>Nomor / Kode *</label>
-              <input value={form.nomor} onChange={e => setForm(f=>({...f,nomor:e.target.value}))} placeholder="ISO 9001:2015 / Permenaker No. 5/2018 / ..." />
+              <label>Nomor / Kode Dokumen Standar *</label>
+              <input value={form.nomor} onChange={e => setForm(f => ({ ...f, nomor: e.target.value }))} placeholder="Misal: ISO 9001:2015 / UU No. 1 Tahun 1970..." required />
             </div>
             <div className="field">
-              <label>Judul *</label>
-              <input value={form.judul} onChange={e => setForm(f=>({...f,judul:e.target.value}))} placeholder="Nama lengkap regulasi atau standar..." />
+              <label>Judul Lengkap Referensi *</label>
+              <input value={form.judul} onChange={e => setForm(f => ({ ...f, judul: e.target.value }))} placeholder="Nama lengkap regulasi atau standar..." required />
             </div>
             <div className="field">
-              <label>Deskripsi Singkat</label>
-              <textarea value={form.deskripsi} onChange={e => setForm(f=>({...f,deskripsi:e.target.value}))} placeholder="Keterangan singkat tentang referensi ini..." rows={3} />
+              <label>Deskripsi Singkat / Ruang Lingkup</label>
+              <textarea value={form.deskripsi} onChange={e => setForm(f => ({ ...f, deskripsi: e.target.value }))} placeholder="Keterangan singkat tentang penerapan referensi ini..." rows={3} />
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModal(false)}>Batal</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Menyimpan...' : '+ Simpan Referensi'}
+                {saving ? 'Menyimpan...' : 'Simpan Referensi'}
               </button>
             </div>
           </div>

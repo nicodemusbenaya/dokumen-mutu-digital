@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `documents` (
   `kode`             VARCHAR(80)  NOT NULL UNIQUE,
   `judul`            VARCHAR(500) NOT NULL,
   `bidang`           VARCHAR(80)  NOT NULL,
-  `jenis`            ENUM('SOP/Prosedur','Manual Mutu','Instruksi Kerja','Formulir Kerja') NOT NULL,
+  `jenis`            ENUM('SOP/Prosedur','Manual Mutu','Instruksi Kerja','Formulir Kerja','Formulir Tambahan','BA Pemusnahan Rekaman','Pernyataan Kerahasiaan','Daftar Rekaman Mutu') NOT NULL,
   `siklus_review`    VARCHAR(20)  NOT NULL DEFAULT '2 tahun',
   `status`           ENUM('Draft','Review','Menunggu Approval','Aktif','Obsolete') NOT NULL DEFAULT 'Draft',
   `current_version`  VARCHAR(20)  NOT NULL DEFAULT '1.0',

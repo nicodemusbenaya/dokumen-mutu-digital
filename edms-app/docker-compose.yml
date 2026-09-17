@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Layanan Web App EDMS Next.js (Standalone, hemat RAM)
+  edms-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edms-ups:latest
+    container_name: edms-ups-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # Gunakan IP lokal NAS atau host.docker.internal untuk menjangkau MariaDB QNAP
+      - DB_HOST=10.10.200.166
+      - DB_PORT=3307
+      - DB_NAME=edms_ups
+      - DB_USER=root
+      - DB_PASSWORD=12345678
+      - JWT_SECRET=bff080224bc66715307017bd9ef28b2f14d7c8c5985c00e7afa4a04ab9fc2162
+      - SESSION_COOKIE=edms_session
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    volumes:
+      # Mount storage fisik NAS untuk PDF, attachments, dan signatures (Sesuai Bab 9.5 Spesifikasi)
+      - ./storage:/app/storage
+
+  # Layanan Cloudflare Tunnel (Akses dari luar tanpa buka port & tanpa VPN)
+  # Cukup masukkan TOKEN yang didapat dari Cloudflare Zero Trust (Gratis)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: edms-cloudflare-tunnel
+    restart: always
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - edms-app

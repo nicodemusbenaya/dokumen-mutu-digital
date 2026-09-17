@@ -2,32 +2,44 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import type { SessionUser } from '@/lib/auth';
 import { hasPermission } from '@/lib/rbac';
+import {
+  IconDashboard,
+  IconDocuments,
+  IconEditor,
+  IconApproval,
+  IconPdf,
+  IconPeta,
+  IconReferences,
+  IconAudit,
+  IconLogout,
+} from '@/components/icons/Icons';
 
 interface NavItem {
-  href:  string;
-  icon:  string;
+  href: string;
+  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
   label: string;
   perm?: string;
   badgeKey?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard',  icon: '🏠', label: 'Dashboard' },
-  { href: '/documents',  icon: '📄', label: 'Daftar Dokumen' },
-  { href: '/editor',     icon: '✏️', label: 'Editor Dokumen' },
-  { href: '/approval',   icon: '✅', label: 'Approval', badgeKey: 'approval' },
-  { href: '/pdf',        icon: '📑', label: 'Lihat PDF' },
-  { href: '/manage',     icon: '📁', label: 'Manajemen Dokumen' },
-  { href: '/references', icon: '📚', label: 'Master Referensi' },
-  { href: '/audit',      icon: '🔍', label: 'Audit Log' },
+  { href: '/dashboard',  icon: IconDashboard,  label: 'Dashboard' },
+  { href: '/documents',  icon: IconDocuments,  label: 'Daftar Dokumen' },
+  { href: '/editor',     icon: IconEditor,     label: 'Editor Dokumen' },
+  { href: '/approval',   icon: IconApproval,   label: 'Approval Mutu', badgeKey: 'approval' },
+  { href: '/pdf',        icon: IconPdf,        label: 'Lihat & Cetak PDF' },
+  { href: '/manage',     icon: IconPeta,       label: 'Peta Dokumen' },
+  { href: '/references', icon: IconReferences, label: 'Master Referensi' },
+  { href: '/audit',      icon: IconAudit,      label: 'Audit Trail' },
 ];
 
 export default function Sidebar({ user }: { user: SessionUser }) {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
   const [approvalCount, setApprovalCount] = useState<number>(0);
 
   const initials = user.fullName
@@ -65,33 +77,67 @@ export default function Sidebar({ user }: { user: SessionUser }) {
 
   return (
     <aside className="sidebar">
+      {/* Brand Header with Dual Logos: Danantara & PLN (Emblem Only) */}
       <div className="sidebar-brand">
-        <div className="sidebar-brand-logo">
-          <div className="sidebar-brand-icon">📋</div>
-          <div className="sidebar-brand-name">Dokumen Mutu<br />Digital</div>
+        <div className="sidebar-logo-card">
+          <div className="sidebar-logo-row">
+            {/* Danantara Logo */}
+            <div className="danantara-logo-wrap">
+              <Image
+                src="/images/logo-danantara.svg"
+                alt="Logo Danantara Indonesia"
+                width={120}
+                height={22}
+                style={{ width: 'auto', height: 22 }}
+                className="danantara-img"
+                priority
+              />
+            </div>
+            <div className="brand-divider" />
+            {/* PLN Emblem ONLY (No PLN text) */}
+            <div className="pln-emblem-wrap" title="PLN (Emblem Resmi)">
+              <Image
+                src="/images/logo-pln.png"
+                alt="PLN Emblem"
+                width={26}
+                height={26}
+                style={{ width: 'auto', height: 26 }}
+                className="pln-emblem-img"
+                priority
+              />
+            </div>
+          </div>
         </div>
-        <div className="sidebar-unit">PLN UP Sertifikasi · EDMS v1.0</div>
+
+        <div className="sidebar-brand-text">
+          <div className="sidebar-brand-title">DOKUMEN MUTU DIGITAL</div>
+          <div className="sidebar-brand-sub">PLN UP Sertifikasi · EDMS v1.0</div>
+        </div>
       </div>
 
+      {/* User profile card */}
       <div className="sidebar-user">
         <div className="user-avatar">{initials}</div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div className="user-name" title={user.fullName}>
             {user.fullName}
           </div>
-          <div className="user-role" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div className="user-role" title={user.role}>
             {user.role}
           </div>
         </div>
       </div>
 
-      <div className="sidebar-section-label">Menu Utama</div>
+      <div className="sidebar-section-label">Navigasi Utama</div>
 
-      <nav>
+      {/* Navigation items */}
+      <nav className="sidebar-nav">
         {visibleItems.map(item => {
           const active = item.href === '/dashboard'
             ? pathname === '/dashboard'
             : pathname.startsWith(item.href);
+
+          const IconComp = item.icon;
 
           return (
             <Link
@@ -99,8 +145,10 @@ export default function Sidebar({ user }: { user: SessionUser }) {
               href={item.href}
               className={`nav-item ${active ? 'active' : ''}`}
             >
-              <span className="nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
+              <span className="nav-icon">
+                <IconComp size={18} />
+              </span>
+              <span className="nav-label">{item.label}</span>
               {item.badgeKey === 'approval' && approvalCount > 0 && (
                 <span className="nav-badge">{approvalCount}</span>
               )}
@@ -109,14 +157,15 @@ export default function Sidebar({ user }: { user: SessionUser }) {
         })}
       </nav>
 
+      {/* Footer & Logout */}
       <div className="sidebar-footer">
         <button
           className="sidebar-footer-btn"
-          title="Keluar"
+          title="Keluar dari sesi ini"
           onClick={handleLogout}
-          style={{ flex: 1 }}
         >
-          🚪 Keluar
+          <IconLogout size={16} />
+          <span>Keluar Sistem</span>
         </button>
       </div>
     </aside>

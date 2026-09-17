@@ -78,10 +78,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     return NextResponse.json({ data: { url: pdfUrl }, message: 'PDF berhasil dibuat.' });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[PDF Generation Error]', err);
     return NextResponse.json(
-      { error: 'Gagal generate PDF. Pastikan Chromium/Chrome tersedia di server.' },
+      { error: `Gagal generate PDF: ${err?.message || 'Pastikan Chromium/Chrome tersedia di server.'}` },
       { status: 500 }
     );
   }

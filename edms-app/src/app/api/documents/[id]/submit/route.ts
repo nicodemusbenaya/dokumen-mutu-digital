@@ -27,13 +27,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return forbidden();
   }
 
-  // Cek minimal Tujuan dan Judul terisi
+  // Validasi kelengkapan isi bagian dokumen sesuai jenis dokumen
   const sections = await query<any[]>(
-    "SELECT section_key, content FROM document_sections WHERE document_id = ? AND section_key = 'tujuan'",
+    'SELECT section_key, content FROM document_sections WHERE document_id = ?',
     [docId]
   );
-  if (!sections.length || !sections[0].content?.trim()) {
-    return NextResponse.json({ error: 'Bagian "Tujuan" harus diisi sebelum mengajukan review.' }, { status: 422 });
+
+  const hasText = sections.some(s => {
+    const plain = (s.content || '').replace(/<[^>]*>/g, '').trim();
+    return plain.length > 0;
+  });
+
+  if (!sections.length || !hasText) {
+    return NextResponse.json({ 
+      error: 'Isi bagian dokumen belum lengkap. Harap isi bagian dokumen sebelum mengajukan review.' 
+    }, { status: 422 });
+  }
+
+  // Khusus SOP dan IK yang memiliki klausul baku "1. Tujuan", pastikan bagian tujuan terisi
+  if (doc.jenis === 'SOP/Prosedur' || doc.jenis === 'Instruksi Kerja') {
+    const tujuanSec = sections.find(s => s.section_key === 'tujuan');
+    const tujuanPlain = (tujuanSec?.content || '').replace(/<[^>]*>/g, '').trim();
+    if (!tujuanSec || !tujuanPlain) {
+      return NextResponse.json({ 
+        error: 'Bagian "1. Tujuan" wajib diisi sebelum mengajukan review Prosedur / Instruksi Kerja.' 
+      }, { status: 422 });
+    }
   }
 
   await query(

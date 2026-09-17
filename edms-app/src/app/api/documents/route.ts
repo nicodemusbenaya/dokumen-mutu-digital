@@ -3,6 +3,7 @@ import { getSessionFromRequest, unauthorized } from '@/lib/auth';
 import { query, withTransaction } from '@/lib/db';
 import { addAuditLog } from '@/lib/audit';
 import { hasPermission } from '@/lib/rbac';
+import { getDefaultSectionsForType } from '@/lib/documentTypes';
 
 // ─── GET /api/documents ───────────────────────────────────────
 // Query params: ?status=&bidang=&q=&page=&limit=
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') || '';
   const bidang = searchParams.get('bidang') || '';
+  const jenis  = searchParams.get('jenis')  || '';
   const q      = searchParams.get('q')      || '';
   const page   = Math.max(1, parseInt(searchParams.get('page') || '1'));
   const limit  = Math.min(100, parseInt(searchParams.get('limit') || '50'));
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
 
   if (status) { conditions.push('d.status = ?'); params.push(status); }
   if (bidang) { conditions.push('d.bidang = ?'); params.push(bidang); }
+  if (jenis)  { conditions.push('d.jenis = ?');  params.push(jenis);  }
   if (q) {
     conditions.push('(d.kode LIKE ? OR d.judul LIKE ? OR d.bidang LIKE ?)');
     const like = `%${q}%`;
@@ -67,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { kode, judul, bidang, jenis, siklusReview } = body;
+  const { kode, judul, bidang, jenis, siklusReview, sections, refIds } = body;
 
   if (!kode || !judul || !bidang || !jenis) {
     return NextResponse.json({ error: 'Kode, judul, bidang, dan jenis wajib diisi.' }, { status: 400 });
@@ -79,31 +82,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Kode dokumen "${kode}" sudah digunakan.` }, { status: 409 });
   }
 
-  const result = await withTransaction(async (conn) => {
-    const [res] = await conn.execute(
-      `INSERT INTO documents (kode, judul, bidang, jenis, siklus_review, penyusun_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [kode, judul, bidang, jenis, siklusReview || '2 tahun', user.id]
-    ) as any;
-    const docId = res.insertId;
+  try {
+    const result = await withTransaction(async (conn) => {
+      const [res] = await conn.execute(
+        `INSERT INTO documents (kode, judul, bidang, jenis, siklus_review, penyusun_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [kode, judul, bidang, jenis, siklusReview || '2 tahun', user.id]
+      ) as any;
+      const docId = res.insertId;
 
-    // Insert empty sections
-    const sectionKeys = ['tujuan', 'ruang_lingkup', 'definisi', 'prosedur', 'lampiran'];
-    for (const key of sectionKeys) {
-      await conn.execute(
-        'INSERT INTO document_sections (document_id, section_key, content) VALUES (?, ?, ?)',
-        [docId, key, '']
-      );
-    }
-    return docId;
-  });
+      // Insert sections (dari body.sections atau default template resmi sesuai jenis dokumen)
+      const sectionsToSave = (sections && typeof sections === 'object' && Object.keys(sections).length > 0)
+        ? sections
+        : getDefaultSectionsForType(jenis);
 
-  await addAuditLog(user, 'CREATE', {
-    documentId: result,
-    docKode:    kode,
-    note:       'Dokumen baru dibuat',
-    ipAddress:  req.headers.get('x-forwarded-for') ?? undefined,
-  });
+      for (const [key, content] of Object.entries(sectionsToSave)) {
+        await conn.execute(
+          'INSERT INTO document_sections (document_id, section_key, content) VALUES (?, ?, ?)',
+          [docId, key, typeof content === 'string' ? content : '']
+        );
+      }
 
-  return NextResponse.json({ data: { id: result }, message: 'Dokumen berhasil dibuat.' }, { status: 201 });
+      // Insert linked references jika ada
+      if (Array.isArray(refIds) && refIds.length > 0) {
+        for (const refId of refIds) {
+          await conn.execute(
+            'INSERT INTO document_references (document_id, reference_id) VALUES (?, ?)',
+            [docId, refId]
+          );
+        }
+      }
+
+      return docId;
+    });
+
+    await addAuditLog(user, 'CREATE', {
+      documentId: result,
+      docKode:    kode,
+      note:       'Dokumen baru dibuat',
+      ipAddress:  req.headers.get('x-forwarded-for') ?? undefined,
+    });
+
+    return NextResponse.json({ data: { id: result }, message: 'Dokumen berhasil dibuat.' }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Gagal membuat dokumen.' }, { status: 500 });
+  }
 }

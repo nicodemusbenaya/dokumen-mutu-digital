@@ -31,3 +31,43 @@
   content: attr(data-placeholder);
   float: left; color: var(--ink-muted); pointer-events: none; height: 0;
 }
+
+/* TipTap Table Styling */
+.tiptap-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  table-layout: auto;
+  border: 1px solid #cbd5e1;
+}
+.tiptap-body th {
+  background-color: #f1f5f9;
+  border: 1px solid #94a3b8;
+  padding: 8px 12px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 13px;
+  position: relative;
+}
+.tiptap-body td {
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  font-size: 13px;
+  vertical-align: top;
+  position: relative;
+}
+.tiptap-body .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(56, 189, 248, 0.25);
+  pointer-events: none;
+}
+.tiptap-body .column-resize-handle {
+  position: absolute;
+  right: -2px; top: 0; bottom: -2px;
+  width: 4px;
+  background-color: #38bdf8;
+  pointer-events: none;
+}

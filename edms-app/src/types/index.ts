@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 export type DocumentStatus = 'Draft' | 'Review' | 'Menunggu Approval' | 'Aktif' | 'Obsolete';
-export type DocumentJenis  = 'SOP/Prosedur' | 'Manual Mutu' | 'Instruksi Kerja' | 'Formulir Kerja';
+export type DocumentJenis  = 'SOP/Prosedur' | 'Manual Mutu' | 'Instruksi Kerja' | 'Formulir Kerja' | 'Formulir Tambahan';
 export type RefKategori    = 'Regulasi' | 'Standar' | 'Internal';
 export type ApprovalStage  = 1 | 2 | 3; // 1=Tim Mutu, 2=Manager, 3=Pimpinan
 

@@ -1,20 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import {
+  DOCUMENT_SECTIONS,
+  DocumentType,
+  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABELS,
+  getDefaultSectionsForType,
+  getSectionLabel,
+} from '@/lib/documentTypes';
 
-// Lazy load TipTap to avoid SSR issues
+import { IconArrowLeft, IconCheck } from '@/components/icons/Icons';
+
+// Lazy load TipTap and TableGridEditor to avoid SSR issues
 const TipTapEditor = dynamic(() => import('@/components/editor/TipTapEditor'), { ssr: false });
-
-const SECTIONS = [
-  { key: 'tujuan',        label: '1. Tujuan', hint: 'Nyatakan tujuan utama dokumen ini.' },
-  { key: 'ruang_lingkup', label: '2. Ruang Lingkup', hint: 'Jelaskan cakupan dan batasan berlakunya dokumen.' },
-  { key: 'definisi',      label: '3. Definisi & Istilah', hint: 'Definisikan istilah-istilah teknis yang digunakan.' },
-  { key: 'prosedur',      label: '4. Prosedur', hint: 'Uraikan langkah-langkah prosedur secara rinci dan berurutan.' },
-  { key: 'lampiran',      label: '5. Lampiran', hint: 'Cantumkan formulir, tabel, atau dokumen pendukung.' },
-];
+const TableGridEditor = dynamic(() => import('@/components/editor/TableGridEditor'), { ssr: false });
 
 export default function EditorPage() {
   const params  = useParams();
@@ -24,11 +27,14 @@ export default function EditorPage() {
 
   const [doc,     setDoc]     = useState<any>(null);
   const [header,  setHeader]  = useState({ kode:'', judul:'', bidang:'', jenis:'SOP/Prosedur', siklusReview:'2 tahun' });
-  const [sections,setSections]= useState<Record<string,string>>({});
+  const [sections,setSections]= useState<Record<string,string>>(() => {
+    return isNew ? getDefaultSectionsForType('SOP/Prosedur') : {};
+  });
   const [refs,    setRefs]    = useState<any[]>([]);
   const [allRefs, setAllRefs] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState('tujuan');
   const [saving,  setSaving]  = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [msg,     setMsg]     = useState('');
   const [msgType, setMsgType] = useState<'ok'|'err'>('ok');
   const [refPickerOpen, setRefPickerOpen] = useState(false);
@@ -36,95 +42,160 @@ export default function EditorPage() {
   const versionRef = useRef<number>(1);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // Bagian seksi dinamis berdasarkan jenis dokumen baku
+  const currentSections = useMemo(() => {
+    const typeSections = DOCUMENT_SECTIONS[header.jenis as DocumentType] || DOCUMENT_SECTIONS['SOP/Prosedur'];
+    const keysInDoc = Object.keys(sections);
+    const knownKeys = new Set(typeSections.map(s => s.key));
+    const extraSections = keysInDoc
+      .filter(k => !knownKeys.has(k) && sections[k]?.trim())
+      .map(k => ({
+        key: k,
+        label: getSectionLabel(k, header.jenis),
+        hint: 'Bagian dokumen tersimpan.',
+      }));
+    return [...typeSections, ...extraSections];
+  }, [header.jenis, sections]);
+
+  useEffect(() => {
+    if (currentSections.length > 0 && !currentSections.some(s => s.key === activeSection)) {
+      setActiveSection(currentSections[0].key);
+    }
+  }, [currentSections, activeSection]);
+
   const fetchDoc = useCallback(async () => {
-    if (!docId) return;
+    if (isNew) return;
     const res = await fetch(`/api/documents/${docId}`);
     if (res.ok) {
       const json = await res.json();
       const d = json.data;
       setDoc(d);
-      setHeader({ kode: d.kode, judul: d.judul, bidang: d.bidang, jenis: d.jenis, siklusReview: d.siklus_review });
+      setHeader({
+        kode: d.kode,
+        judul: d.judul,
+        bidang: d.bidang,
+        jenis: d.jenis,
+        siklusReview: d.siklusReview || '2 tahun',
+      });
+      versionRef.current = d.currentVersion || 1;
       setSections(d.sections || {});
       setRefs(d.refs || []);
-      versionRef.current = d.version_number;
+      setIsDirty(false);
     }
-  }, [docId]);
+  }, [docId, isNew]);
 
-  const fetchRefs = useCallback(async () => {
-    const res = await fetch('/api/references');
-    if (res.ok) {
-      const json = await res.json();
-      setAllRefs(json.data || []);
-    }
+  useEffect(() => { fetchDoc(); }, [fetchDoc]);
+
+  // Load all master refs for picker
+  useEffect(() => {
+    fetch('/api/references?limit=100')
+      .then(r => r.json())
+      .then(j => setAllRefs(j.data || []))
+      .catch(console.error);
   }, []);
-
-  useEffect(() => { fetchDoc(); fetchRefs(); }, [fetchDoc, fetchRefs]);
 
   function notify(text: string, type: 'ok'|'err' = 'ok') {
     setMsg(text); setMsgType(type);
     setTimeout(() => setMsg(''), 4000);
   }
 
-  async function handleSave(auto = false) {
+  function updateHeader(patch: Partial<typeof header>) {
+    setHeader(h => ({ ...h, ...patch }));
+    setIsDirty(true);
+  }
+
+  function updateSection(key: string, html: string) {
+    setSections(s => ({ ...s, [key]: html }));
+    setIsDirty(true);
+  }
+
+  async function handleSave(silent = false) {
+    if (!header.kode.trim() || !header.judul.trim()) {
+      notify('Kode dan judul dokumen wajib diisi!', 'err');
+      return;
+    }
     setSaving(true);
-    if (isNew) {
-      // Create new
-      if (!header.kode || !header.judul || !header.bidang) {
-        notify('Kode, Judul, dan Bidang wajib diisi.', 'err');
-        setSaving(false);
+
+    const payload = {
+      ...header,
+      sections,
+      references: refs.map(r => r.id),
+      version: versionRef.current,
+    };
+
+    try {
+      const url = isNew ? '/api/documents' : `/api/documents/${docId}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        notify(json.error || 'Gagal menyimpan dokumen.', 'err');
+      } else {
+        setIsDirty(false);
+        if (!silent) notify('Dokumen berhasil disimpan!');
+        if (isNew && json.data?.id) {
+          router.push(`/editor/${json.data.id}`);
+        } else {
+          versionRef.current = json.data?.version || versionRef.current;
+          setDoc(json.data);
+        }
+      }
+    } catch {
+      notify('Koneksi server gagal.', 'err');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleBack() {
+    if (isDirty) {
+      const confirmLeave = window.confirm(
+        'Perubahan dokumen belum disimpan!\n\nKlik "OK" untuk tetap kembali tanpa menyimpan, atau "Batal" untuk melanjutkan pengeditan.'
+      );
+      if (!confirmLeave) return;
+    }
+    router.push('/documents');
+  }
+
+  function handleApplyTemplate(j: string) {
+    const tmpl = getDefaultSectionsForType(j);
+    const hasContent = Object.values(sections).some(v => v && v.trim() && v !== '<p></p>');
+    if (hasContent) {
+      if (!confirm(`Terapkan template baku untuk "${j}"? Isi seksi saat ini akan digantikan dengan format baku resmi PLN UPS.`)) {
         return;
       }
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...header }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        router.replace(`/editor/${json.data.id}`);
-        notify('Dokumen berhasil dibuat!');
-      } else {
-        notify(json.error, 'err');
-      }
-    } else {
-      // Update
-      const res = await fetch(`/api/documents/${docId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...header, sections, versionNumber: versionRef.current }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        versionRef.current = json.data?.versionNumber ?? versionRef.current;
-        if (!auto) notify('Tersimpan ✓');
-      } else if (res.status === 409) {
-        notify('⚠️ Konflik: dokumen telah diubah di perangkat lain. Muat ulang!', 'err');
-      } else {
-        notify(json.error, 'err');
-      }
     }
-    setSaving(false);
+    setSections({ ...tmpl });
+    setIsDirty(true);
+    notify(`Template baku "${j}" berhasil diterapkan!`);
   }
 
-  function scheduleAutoSave() {
-    clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => handleSave(true), 30_000);
-  }
-
-  function handleSectionChange(key: string, html: string) {
-    setSections(prev => ({ ...prev, [key]: html }));
-    scheduleAutoSave();
+  function handleJenisChange(newJenis: string) {
+    setHeader(h => ({ ...h, jenis: newJenis }));
+    setIsDirty(true);
+    if (isNew) {
+      const tmpl = getDefaultSectionsForType(newJenis);
+      setSections({ ...tmpl });
+      notify(`Format template berganti ke "${newJenis}"`);
+    }
   }
 
   function addRef(ref: any) {
     if (!refs.find((r: any) => r.id === ref.id)) {
       setRefs(prev => [...prev, ref]);
+      setIsDirty(true);
     }
     setRefPickerOpen(false);
   }
 
   function removeRef(id: number) {
     setRefs(prev => prev.filter((r: any) => r.id !== id));
+    setIsDirty(true);
   }
 
   const filteredRefs = allRefs.filter(r =>
@@ -142,17 +213,34 @@ export default function EditorPage() {
       )}
 
       {/* Header Bar */}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
-            <Link href="/documents" style={{fontSize:13,color:'var(--ink-soft)'}}>← Daftar Dokumen</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <button
+              type="button"
+              onClick={handleBack}
+              className="btn btn-ghost btn-xs"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <IconArrowLeft size={13} />
+              <span>Kembali ke Daftar</span>
+            </button>
           </div>
           <div className="page-title">{isNew ? 'Buat Dokumen Baru' : `Edit: ${doc?.kode || '...'}`}</div>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          <button className="btn btn-ghost btn-sm" onClick={() => router.back()}>Batal</button>
-          <button className="btn btn-amber" onClick={() => handleSave(false)} disabled={saving}>
-            {saving ? '⏳ Menyimpan...' : '💾 Simpan'}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={handleBack}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <IconArrowLeft size={14} />
+            <span>Kembali</span>
+          </button>
+          <button className="btn btn-primary" onClick={() => handleSave(false)} disabled={saving}>
+            <IconCheck size={15} />
+            <span>{saving ? 'Menyimpan...' : (isDirty ? 'Simpan Perubahan *' : 'Simpan Dokumen')}</span>
           </button>
         </div>
       </div>
@@ -164,28 +252,40 @@ export default function EditorPage() {
             <div style={{fontWeight:700,fontSize:13,marginBottom:14}}>📋 Informasi Dokumen</div>
             <div className="field">
               <label>Kode Dokumen *</label>
-              <input value={header.kode} onChange={e => setHeader(h=>({...h,kode:e.target.value}))} placeholder="SOP.UPS.XX.2026" readOnly={!isNew} />
+              <input value={header.kode} onChange={e => updateHeader({ kode: e.target.value })} placeholder="SOP.UPS.XX.2026" readOnly={!isNew} />
             </div>
             <div className="field">
               <label>Judul *</label>
-              <input value={header.judul} onChange={e => setHeader(h=>({...h,judul:e.target.value}))} placeholder="Judul dokumen..." />
+              <input value={header.judul} onChange={e => updateHeader({ judul: e.target.value })} placeholder="Judul dokumen..." />
             </div>
             <div className="field">
               <label>Bidang *</label>
-              <input value={header.bidang} onChange={e => setHeader(h=>({...h,bidang:e.target.value}))} placeholder="Manajemen Mutu / Sertifikasi / ..." />
+              <input value={header.bidang} onChange={e => updateHeader({ bidang: e.target.value })} placeholder="Manajemen Mutu / Sertifikasi / ..." />
             </div>
             <div className="field">
-              <label>Jenis Dokumen</label>
-              <select value={header.jenis} onChange={e => setHeader(h=>({...h,jenis:e.target.value}))}>
-                <option>SOP/Prosedur</option>
-                <option>Manual Mutu</option>
-                <option>Instruksi Kerja</option>
-                <option>Formulir Kerja</option>
+              <label>Jenis & Template Dokumen *</label>
+              <select value={header.jenis} onChange={e => handleJenisChange(e.target.value)}>
+                {DOCUMENT_TYPES.map(t => (
+                  <option key={t} value={t}>
+                    {DOCUMENT_TYPE_LABELS[t] || t}
+                  </option>
+                ))}
               </select>
+            </div>
+            <div style={{ marginTop: -4, marginBottom: 14 }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs"
+                style={{ width: '100%', justifyContent: 'center', gap: 6, fontSize: 11.5 }}
+                onClick={() => handleApplyTemplate(header.jenis)}
+                title="Terapkan klausul dan kerangka isian resmi dari template Word PLN UPS"
+              >
+                <span>Muat Template Baku Resmi</span>
+              </button>
             </div>
             <div className="field">
               <label>Siklus Review</label>
-              <select value={header.siklusReview} onChange={e => setHeader(h=>({...h,siklusReview:e.target.value}))}>
+              <select value={header.siklusReview} onChange={e => updateHeader({ siklusReview: e.target.value })}>
                 <option value="1 tahun">1 tahun</option>
                 <option value="2 tahun">2 tahun</option>
                 <option value="3 tahun">3 tahun</option>
@@ -195,8 +295,8 @@ export default function EditorPage() {
 
           {/* Section nav */}
           <div className="card card-body">
-            <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>📑 Bagian Dokumen</div>
-            {SECTIONS.map(s => (
+            <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>📑 Bagian Dokumen Baku</div>
+            {currentSections.map(s => (
               <button
                 key={s.key}
                 onClick={() => setActiveSection(s.key)}
@@ -236,7 +336,7 @@ export default function EditorPage() {
 
         {/* Right: Editor */}
         <div>
-          {SECTIONS.map(sec => (
+          {currentSections.map(sec => (
             <div key={sec.key} style={{display: activeSection === sec.key ? 'block' : 'none'}}>
               <div className="card">
                 <div style={{padding:'14px 18px',borderBottom:'1px solid var(--paper-line)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -246,10 +346,12 @@ export default function EditorPage() {
                   </div>
                 </div>
                 <div style={{minHeight:400}}>
-                  <TipTapEditor
-                    key={sec.key}
+                  <TableGridEditor
+                    key={`${docId || 'new'}-${sec.key}`}
+                    sectionKey={sec.key}
+                    sectionLabel={sec.label}
                     content={sections[sec.key] || ''}
-                    onChange={html => handleSectionChange(sec.key, html)}
+                    onChange={html => updateSection(sec.key, html)}
                   />
                 </div>
               </div>

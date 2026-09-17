@@ -20,6 +20,7 @@ export type Permission =
   | 'document:read'         // Baca dokumen aktif
   | 'document:generate_pdf' // Generate PDF
   | 'reference:create'      // Tambah master referensi
+  | 'reference:update'      // Ubah master referensi
   | 'reference:delete'      // Hapus master referensi
   | 'audit:read'            // Baca audit log
   | 'user:manage';          // Kelola user (admin only)
@@ -46,7 +47,7 @@ const PERMISSIONS: Record<Role, Permission[]> = {
     'document:create', 'document:edit', 'document:submit',
     'document:review', 'document:approve:mgr', 'document:approve:pimpinan',
     'document:read', 'document:generate_pdf',
-    'reference:create', 'reference:delete',
+    'reference:create', 'reference:update', 'reference:delete',
     'audit:read', 'user:manage',
   ],
 };
