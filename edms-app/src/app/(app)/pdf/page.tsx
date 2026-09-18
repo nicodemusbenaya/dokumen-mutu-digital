@@ -4,12 +4,17 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Document, DocumentDetail } from '@/types';
-import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel } from '@/lib/documentTypes';
 import { injectSignaturesIntoFormHtml } from '@/lib/pdf-utils';
+import { getRevisionHistory, RevisionRow } from '@/lib/revisionUtils';
 import { IconEditor, IconDownload, IconSearch } from '@/components/icons/Icons';
 import Image from 'next/image';
 
 const FORMULIR_TYPES = new Set([
+  'Formulir Standar (FR.01.04)',
+  'Berita Acara Pemusnahan (FR.01.05)',
+  'Pernyataan Kerahasiaan (FR.01.06)',
+  'Daftar Rekaman Mutu (FR.01.07)',
   'BA Pemusnahan Rekaman',
   'Pernyataan Kerahasiaan',
   'Daftar Rekaman Mutu',
@@ -18,6 +23,22 @@ const FORMULIR_TYPES = new Set([
 ]);
 
 const FORMULIR_OFFICIAL_HEADERS: Record<string, { title: string; formNo: string }> = {
+  'Formulir Standar (FR.01.04)': {
+    title: 'FORMULIR REKAMAN MUTU STANDAR',
+    formNo: 'FR.UPS.SER3.BMK.01.04-00'
+  },
+  'Berita Acara Pemusnahan (FR.01.05)': {
+    title: 'FORMULIR BERITA ACARA<br>PEMUSNAHAN REKAMAN MUTU',
+    formNo: 'FR.UPS.SER3.BMK.01.05-00'
+  },
+  'Pernyataan Kerahasiaan (FR.01.06)': {
+    title: 'FORMULIR PERNYATAAN KERAHASIAAN',
+    formNo: 'FR.UPS.SER3.BMK.01.06-00'
+  },
+  'Daftar Rekaman Mutu (FR.01.07)': {
+    title: 'DAFTAR REKAMAN MUTU',
+    formNo: 'FR.UPS.SER3.BMK.01.07-00'
+  },
   'BA Pemusnahan Rekaman': {
     title: 'FORMULIR BERITA ACARA<br>PEMUSNAHAN REKAMAN MUTU',
     formNo: 'FR.UPS.SER3.BMK.01.05-00'
@@ -28,7 +49,7 @@ const FORMULIR_OFFICIAL_HEADERS: Record<string, { title: string; formNo: string 
   },
   'Daftar Rekaman Mutu': {
     title: 'DAFTAR REKAMAN MUTU',
-    formNo: 'FR.UPS.SER3.BSB.01.07-00'
+    formNo: 'FR.UPS.SER3.BMK.01.07-00'
   },
   'Formulir Kerja': {
     title: 'FORMULIR REKAMAN MUTU STANDAR',
@@ -39,6 +60,40 @@ const FORMULIR_OFFICIAL_HEADERS: Record<string, { title: string; formNo: string 
     formNo: 'FR.UPS.SER3.BMK.01.XX-00'
   }
 };
+
+function RevisionTableComponent({ rows }: { rows: RevisionRow[] }) {
+  return (
+    <div style={{ margin: '18px 0 22px' }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.03em', marginBottom: 8, textTransform: 'uppercase', textAlign: 'center' }}>
+        RIWAYAT PERUBAHAN
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #000', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: '#F1F5F9' }}>
+            <th style={{ width: '5%', textAlign: 'center', padding: '8px 6px', border: '1px solid #000', fontWeight: 800 }}>No</th>
+            <th style={{ width: '14%', textAlign: 'center', padding: '8px 10px', border: '1px solid #000', fontWeight: 800 }}>Tanggal</th>
+            <th style={{ width: '11%', textAlign: 'center', padding: '8px 10px', border: '1px solid #000', fontWeight: 800 }}>Halaman</th>
+            <th style={{ width: '31%', textAlign: 'center', padding: '8px 10px', border: '1px solid #000', fontWeight: 800 }}>Uraian yang Dirubah</th>
+            <th style={{ width: '31%', textAlign: 'center', padding: '8px 10px', border: '1px solid #000', fontWeight: 800 }}>Uraian Perubahan</th>
+            <th style={{ width: '8%', textAlign: 'center', padding: '8px 6px', border: '1px solid #000', fontWeight: 800 }}>Revisi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.no}>
+              <td style={{ textAlign: 'center', padding: '8px 6px', border: '1px solid #000' }}>{r.no}</td>
+              <td style={{ textAlign: 'center', padding: '8px 10px', border: '1px solid #000', whiteSpace: 'nowrap' }}>{r.tanggal}</td>
+              <td style={{ textAlign: 'center', padding: '8px 10px', border: '1px solid #000' }}>{r.halaman}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #000', lineHeight: 1.4 }}>{r.uraianSebelumDiubah}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #000', lineHeight: 1.4 }}>{r.uraianSetelahDiubah}</td>
+              <td style={{ textAlign: 'center', padding: '8px 6px', border: '1px solid #000', fontWeight: 700 }}>{r.revisi}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function PdfPreviewPage() {
   const searchParams = useSearchParams();
@@ -106,10 +161,11 @@ export default function PdfPreviewPage() {
           window.open(json.data.url, '_blank');
         }
       } else {
-        window.print();
+        const err = await res.json().catch(() => ({ error: 'Gagal generate PDF.' }));
+        alert(err.error || 'Gagal generate PDF. Silakan coba lagi.');
       }
     } catch {
-      window.print();
+      alert('Gagal menghubungi server. Pastikan server berjalan dan Chromium tersedia.');
     } finally {
       setDownloading(false);
     }
@@ -277,12 +333,6 @@ export default function PdfPreviewPage() {
       ) : (
         <div className="pdf-wrap">
           <div className="pdf-page">
-            {/* Stamp Status Badge */}
-            {doc.status === 'Aktif' ? (
-              <div className="pdf-controlled">CONTROLLED COPY</div>
-            ) : (
-              <div className="pdf-draft-badge">DRAFT · {doc.status.toUpperCase()}</div>
-            )}
 
             {(() => {
               const isFormulir = FORMULIR_TYPES.has(doc.jenis);
@@ -302,12 +352,33 @@ export default function PdfPreviewPage() {
                       <tbody>
                         <tr>
                           <td className="kop-form-logo">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                              <Image src="/images/logo-danantara.svg" alt="Danantara" width={100} height={24} style={{ height: 24, width: 'auto' }} />
-                              <Image src="/images/logo-pln.png" alt="PLN" width={28} height={28} style={{ height: 28, width: 'auto' }} />
-                            </div>
-                            <div style={{ fontSize: 10.5, fontWeight: 800, color: '#0B192C', lineHeight: 1.25 }}>
-                              PT PLN (PERSERO)<br />UNIT PELAKSANA SERTIFIKASI
+                            <div className="kop-logo-box">
+                              <div className="kop-logo-row">
+                                <Image
+                                  src="/images/logo-danantara.svg"
+                                  alt="Danantara Indonesia"
+                                  width={90}
+                                  height={20}
+                                  className="kop-logo-danantara"
+                                  style={{ height: 20, width: 'auto', objectFit: 'contain' }}
+                                />
+                                <div className="kop-logo-divider" />
+                                <Image
+                                  src="/images/logo-pln.png"
+                                  alt="PLN"
+                                  width={26}
+                                  height={26}
+                                  className="kop-logo-pln"
+                                  style={{ height: 26, width: 'auto', objectFit: 'contain' }}
+                                />
+                              </div>
+                              <div className="kop-logo-text">
+                                <div className="kop-text-pln">PT PLN (PERSERO)</div>
+                                <div className="kop-text-ups">UNIT PELAKSANA SERTIFIKASI</div>
+                              </div>
+                              <div className="uncontrolled-notice" style={{ marginTop: 4, textAlign: 'center' }}>
+                                Uncontrolled when printed or downloaded
+                              </div>
                             </div>
                           </td>
                           <td className="kop-form-title">
@@ -317,29 +388,89 @@ export default function PdfPreviewPage() {
                             <div><strong>Nomor:</strong> {formHeader.formNo}</div>
                             <div><strong>Tanggal:</strong> {formattedDate}</div>
                             <div><strong>Halaman:</strong> 1 dari 1</div>
-                            <div><strong>Status:</strong> {doc.status === 'Aktif' ? 'Controlled' : doc.status}</div>
+                            <div><strong>Status:</strong> <span className={`kop-meta-status ${doc.status === 'Aktif' ? 'status-controlled' : 'status-draft'}`}>{doc.status === 'Aktif' ? 'Controlled' : doc.status}</span></div>
                           </td>
                         </tr>
                       </tbody>
                     </table>
 
-                    {/* Formulir Body mengalir presisi tanpa judul bab h4 */}
+                    {/* Lembar Pengesahan Resmi Formulir */}
+                    <div style={{ margin: '14px 0 12px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.02em', marginBottom: 6 }}>LEMBAR PENGESAHAN</div>
+                      <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 8 }}>Jakarta, {formattedDate}</div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr>
+                            <td style={{ width: '50%', textAlign: 'center', padding: '10px 14px', border: '1px solid #334155' }}>
+                              <div style={{ fontWeight: 700, fontSize: 12 }}>Disusun Oleh:</div>
+                              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Manager Bidang Terkait</div>
+                              <div style={{ height: 46, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {mgrAppr?.signaturePath ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img src={mgrAppr.signaturePath} alt="TTD Manager" style={{ maxHeight: 44, maxWidth: 120 }} />
+                                ) : (
+                                  <span style={{ color: '#94A3B8' }}>—</span>
+                                )}
+                              </div>
+                              <div style={{ fontWeight: 700, fontSize: 12, marginTop: 4 }}>{mgrAppr?.actorName || '( ..................................... )'}</div>
+                            </td>
+                            <td style={{ width: '50%', textAlign: 'center', padding: '10px 14px', border: '1px solid #334155' }}>
+                              <div style={{ fontWeight: 700, fontSize: 12 }}>Disahkan Oleh:</div>
+                              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Senior Manager UPS</div>
+                              <div style={{ height: 46, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {pimpAppr?.signaturePath ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img src={pimpAppr.signaturePath} alt="TTD Pimpinan" style={{ maxHeight: 44, maxWidth: 120 }} />
+                                ) : (
+                                  <span style={{ color: '#94A3B8' }}>—</span>
+                                )}
+                              </div>
+                              <div style={{ fontWeight: 700, fontSize: 12, marginTop: 4 }}>{pimpAppr?.actorName || '( ..................................... )'}</div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Riwayat Perubahan Tepat di Bawah Lembar Pengesahan */}
+                    <RevisionTableComponent rows={getRevisionHistory(doc, (doc as any).versions || [], doc.approvals || [])} />
+
+                    {/* Formulir Body dengan judul klausul terstruktur */}
                     <div className="pdf-body">
                       {(() => {
-                        const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
-                        const docSectionKeys = Object.keys(doc.sections || {});
-                        const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+                        const orderedSections = getOrderedSections(doc.jenis, doc.sections);
+                        const activeSections = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
                         const sigData = {
                           mgrSignature: mgrAppr?.signaturePath ?? null,
                           mgrApprover: mgrAppr?.actorName ?? null,
                           pimpinanSignature: pimpAppr?.signaturePath ?? null,
                           pimpinanApprover: pimpAppr?.actorName ?? null,
                         };
-                        return allKeys
-                          .filter(key => doc.sections?.[key])
-                          .map(key => (
-                            <div key={key} style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[key], sigData) }} />
-                          ));
+                        const SUPPRESS_TITLE_KEYS = new Set([
+                          'judul_formulir',
+                          'identitas_ba',
+                          'identitas_pihak',
+                          'pernyataan_komitmen',
+                          'konsekuensi_penutup'
+                        ]);
+                        return activeSections
+                          .map((sec, idx) => {
+                            const content = injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData);
+                            if (SUPPRESS_TITLE_KEYS.has(sec.key)) {
+                              return (
+                                <div key={sec.key} style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: content }} />
+                              );
+                            }
+                            const label = getDisplaySectionLabel(sec, idx, doc.jenis);
+                            return (
+                              <div key={sec.key} className="doc-section" style={{ marginBottom: 16 }}>
+                                <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0B192C', borderBottom: '1.5px solid #CBD5E1', paddingBottom: 4, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                  {label}
+                                </h4>
+                                <div dangerouslySetInnerHTML={{ __html: content }} />
+                              </div>
+                            );
+                          });
                       })()}
                     </div>
                   </>
@@ -352,26 +483,29 @@ export default function PdfPreviewPage() {
                   {/* Kop Surat Resmi Standard */}
                   <div className="pdf-kop">
                     <div className="pdf-kop-left">
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <Image
-                          src="/images/logo-danantara.svg"
-                          alt="Logo Danantara Indonesia"
-                          width={130}
-                          height={32}
-                          className="pdf-kop-logo-img"
-                          style={{ height: 32, width: 'auto' }}
-                        />
-                      </div>
-                      <div className="pdf-kop-divider" />
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <Image
-                          src="/images/logo-pln.png"
-                          alt="Logo PLN"
-                          width={36}
-                          height={36}
-                          className="pdf-kop-logo-img"
-                          style={{ height: 36, width: 'auto' }}
-                        />
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Image
+                            src="/images/logo-danantara.svg"
+                            alt="Logo Danantara Indonesia"
+                            width={130}
+                            height={32}
+                            className="pdf-kop-logo-img"
+                            style={{ height: 32, width: 'auto' }}
+                          />
+                          <div className="pdf-kop-divider" />
+                          <Image
+                            src="/images/logo-pln.png"
+                            alt="Logo PLN"
+                            width={36}
+                            height={36}
+                            className="pdf-kop-logo-img"
+                            style={{ height: 36, width: 'auto' }}
+                          />
+                        </div>
+                        <div className="uncontrolled-notice" style={{ marginTop: 4 }}>
+                          Uncontrolled when printed or downloaded
+                        </div>
                       </div>
                       <div className="pdf-kop-text">
                         <h3>PT PLN (PERSERO) UNIT PELAKSANA SERTIFIKASI</h3>
@@ -416,7 +550,9 @@ export default function PdfPreviewPage() {
                         <tr>
                           <td style={{ width: '50%', textAlign: 'center', padding: '10px 14px', border: '1px solid #334155' }}>
                             <div style={{ fontWeight: 700, fontSize: 12 }}>Disusun Oleh:</div>
-                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Manager Bidang Terkait</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                              {doc.jenis === 'Manual Mutu' ? 'Para Manager Bidang' : 'Manager Bidang Terkait'}
+                            </div>
                             <div style={{ height: 46, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {mgrAppr?.signaturePath ? (
                                 /* eslint-disable-next-line @next/next/no-img-element */
@@ -445,38 +581,14 @@ export default function PdfPreviewPage() {
                     </table>
                   </div>
 
-                  {/* Riwayat Perubahan Resmi 6-Kolom */}
-                  <div style={{ margin: '16px 0 24px' }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.02em', marginBottom: 6 }}>RIWAYAT PERUBAHAN</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
-                      <thead>
-                        <tr style={{ background: '#F1F5F9' }}>
-                          <th style={{ width: '6%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>No</th>
-                          <th style={{ width: '14%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Tanggal</th>
-                          <th style={{ width: '10%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Halaman</th>
-                          <th style={{ width: '32%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Uraian yang Diubah</th>
-                          <th style={{ width: '28%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Uraian Perubahan</th>
-                          <th style={{ width: '10%', textAlign: 'center', padding: '6px 8px', border: '1px solid #334155' }}>Revisi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>1</td>
-                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>{formattedDate}</td>
-                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>Semua</td>
-                          <td style={{ padding: '6px 8px', border: '1px solid #475569' }}>Penerbitan Dokumen Mutu</td>
-                          <td style={{ padding: '6px 8px', border: '1px solid #475569' }}>Dokumen Mutu Terkendali Resmi Terbit di EDMS</td>
-                          <td style={{ textAlign: 'center', padding: '6px 8px', border: '1px solid #475569' }}>v{doc.currentVersion || (doc as any).current_version}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* Riwayat Perubahan Resmi Tepat di Bawah Lembar Pengesahan */}
+                  <RevisionTableComponent rows={getRevisionHistory(doc, (doc as any).versions || [], doc.approvals || [])} />
 
                   {/* Content Sections */}
                   <div className="pdf-body">
                     {(() => {
                       const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
-                      const docSectionKeys = Object.keys(doc.sections || {});
+                      const docSectionKeys = Object.keys(doc.sections || {}).filter(k => k !== 'riwayat_perubahan');
                       const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
                       const sigData = {
                         mgrSignature: mgrAppr?.signaturePath ?? null,
@@ -484,19 +596,23 @@ export default function PdfPreviewPage() {
                         pimpinanSignature: pimpAppr?.signaturePath ?? null,
                         pimpinanApprover: pimpAppr?.actorName ?? null,
                       };
-                      return allKeys
-                        .filter(key => doc.sections?.[key])
-                        .map(key => (
-                          <div key={key} style={{ marginBottom: 16 }}>
-                            <h4>{getSectionLabel(key, doc.jenis).toUpperCase()}</h4>
-                            <div dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[key], sigData) }} />
-                          </div>
-                        ));
+                      const orderedSections = getOrderedSections(doc.jenis, doc.sections);
+                      const activeSections = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
+                      return activeSections
+                        .map((sec, idx) => {
+                          const label = getDisplaySectionLabel(sec, idx, doc.jenis);
+                          return (
+                            <div key={sec.key} className="doc-section" style={{ marginBottom: 16 }}>
+                              <h4>{label.toUpperCase()}</h4>
+                              <div dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData) }} />
+                            </div>
+                          );
+                        });
                     })()}
 
                     {/* Referensi Terkait */}
                     {doc.refs && doc.refs.length > 0 && (
-                      <>
+                      <div className="doc-section" style={{ marginBottom: 16 }}>
                         <h4>6. REFERENSI & STANDAR TERKAIT</h4>
                         <ul style={{ paddingLeft: 22, marginTop: 8 }}>
                           {doc.refs.map(r => (
@@ -505,7 +621,7 @@ export default function PdfPreviewPage() {
                             </li>
                           ))}
                         </ul>
-                      </>
+                      </div>
                     )}
                   </div>
                 </>
@@ -529,7 +645,12 @@ export default function PdfPreviewPage() {
                 <div className="pdf-sig-label">Ditinjau (Tim Mutu)</div>
                 <div className="pdf-sig-drawn">
                   {mutuAppr ? (
-                    <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>✓ Disetujui</span>
+                    mutuAppr.signaturePath ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={mutuAppr.signaturePath} alt="TTD Tim Mutu" style={{ maxHeight: 46, maxWidth: 100 }} />
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 700 }}>✓ Disetujui</span>
+                    )
                   ) : (
                     <span style={{ color: 'var(--ink-muted)' }}>Belum</span>
                   )}

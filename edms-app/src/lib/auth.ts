@@ -51,7 +51,7 @@ export async function setSession(user: SessionUser): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
+    secure:   process.env.COOKIE_SECURE === 'true' || (process.env.NEXT_PUBLIC_APP_URL?.startsWith('https') ?? false),
     sameSite: 'lax',
     maxAge:   EXPIRES_IN,
     path:     '/',

@@ -156,6 +156,9 @@ export default function TableGridEditor({
   const [rows, setRows] = useState<string[][]>(parsed.rows);
   const [prefixText, setPrefixText] = useState<string>(parsed.prefixHtml);
   const [suffixText, setSuffixText] = useState<string>(parsed.suffixHtml);
+  const [pasteModalOpen, setPasteModalOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [hasHeaderRow, setHasHeaderRow] = useState(true);
 
   // Sync internal state when external content changes (e.g. template loaded)
   useEffect(() => {
@@ -213,6 +216,80 @@ export default function TableGridEditor({
       return copy;
     });
     commitChanges(headers, renumbered);
+  };
+
+  const handleMoveRowUp = (rowIndex: number) => {
+    if (rowIndex <= 0) return;
+    const copy = [...rows];
+    const temp = copy[rowIndex];
+    copy[rowIndex] = copy[rowIndex - 1];
+    copy[rowIndex - 1] = temp;
+    // Renumber first column if sequential
+    const renumbered = copy.map((r, idx) => {
+      const rowItem = [...r];
+      if (/^[0-9]+$/.test(rowItem[0])) {
+        rowItem[0] = String(idx + 1);
+      }
+      return rowItem;
+    });
+    commitChanges(headers, renumbered);
+  };
+
+  const handleMoveRowDown = (rowIndex: number) => {
+    if (rowIndex >= rows.length - 1) return;
+    const copy = [...rows];
+    const temp = copy[rowIndex];
+    copy[rowIndex] = copy[rowIndex + 1];
+    copy[rowIndex + 1] = temp;
+    // Renumber first column if sequential
+    const renumbered = copy.map((r, idx) => {
+      const rowItem = [...r];
+      if (/^[0-9]+$/.test(rowItem[0])) {
+        rowItem[0] = String(idx + 1);
+      }
+      return rowItem;
+    });
+    commitChanges(headers, renumbered);
+  };
+
+  const handleAutoRenumber = () => {
+    const renumbered = rows.map((r, idx) => {
+      const copy = [...r];
+      copy[0] = String(idx + 1);
+      return copy;
+    });
+    commitChanges(headers, renumbered);
+  };
+
+  const handleImportExcel = () => {
+    if (!pasteText.trim()) return;
+    const lines = pasteText.trim().split(/\r?\n/).map(l => l.split('\t'));
+    if (lines.length === 0) return;
+
+    let newHeaders = headers;
+    let newRows: string[][] = [];
+
+    if (hasHeaderRow && lines.length > 1) {
+      newHeaders = lines[0].map(h => h.trim() || 'Kolom');
+      newRows = lines.slice(1);
+    } else {
+      newRows = lines;
+    }
+
+    // Normalisasi kolom
+    const maxCols = Math.max(newHeaders.length, ...newRows.map(r => r.length));
+    while (newHeaders.length < maxCols) {
+      newHeaders.push(`Kolom ${newHeaders.length + 1}`);
+    }
+    const normalized = newRows.map(r => {
+      const row = [...r];
+      while (row.length < maxCols) row.push('');
+      return row;
+    });
+
+    commitChanges(newHeaders, normalized);
+    setPasteModalOpen(false);
+    setPasteText('');
   };
 
   // If this section has NO table at all, render standard TipTap editor directly
@@ -443,26 +520,63 @@ export default function TableGridEditor({
                           )}
                         </td>
                       ))}
-                      <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '6px 4px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteRow(rIdx)}
-                          title="Hapus baris ini"
-                          style={{
-                            background: '#fee2e2',
-                            color: '#dc2626',
-                            border: 'none',
-                            borderRadius: 4,
-                            padding: '6px 8px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          <IconTrash size={14} />
-                        </button>
+                      <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '6px 4px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveRowUp(rIdx)}
+                            disabled={rIdx === 0}
+                            title="Pindah ke atas"
+                            style={{
+                              background: rIdx === 0 ? '#f1f5f9' : '#e0f2fe',
+                              color: rIdx === 0 ? '#94a3b8' : '#0284c7',
+                              border: 'none',
+                              borderRadius: 4,
+                              padding: '5px 7px',
+                              cursor: rIdx === 0 ? 'not-allowed' : 'pointer',
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveRowDown(rIdx)}
+                            disabled={rIdx === rows.length - 1}
+                            title="Pindah ke bawah"
+                            style={{
+                              background: rIdx === rows.length - 1 ? '#f1f5f9' : '#e0f2fe',
+                              color: rIdx === rows.length - 1 ? '#94a3b8' : '#0284c7',
+                              border: 'none',
+                              borderRadius: 4,
+                              padding: '5px 7px',
+                              cursor: rIdx === rows.length - 1 ? 'not-allowed' : 'pointer',
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            ▼
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRow(rIdx)}
+                            title="Hapus baris ini"
+                            style={{
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              border: 'none',
+                              borderRadius: 4,
+                              padding: '5px 7px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <IconTrash size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -482,20 +596,104 @@ export default function TableGridEditor({
               gap: 10,
             }}
           >
-            <button
-              type="button"
-              onClick={handleAddRow}
-              className="btn btn-sm btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <IconPlus size={15} />
-              <span>Tambah Baris Baru</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="btn btn-sm btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <IconPlus size={15} />
+                <span>Tambah Baris Baru</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAutoRenumber}
+                className="btn btn-sm btn-outline"
+                title="Menyusun ulang nomor urut kolom 1 secara otomatis dari 1 sampai akhir"
+                style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              >
+                <span>🔢 Urutkan No. 1, 2, 3</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPasteModalOpen(true)}
+                className="btn btn-sm btn-outline"
+                title="Impor atau tempel data tabel langsung dari Microsoft Excel atau Google Sheets"
+                style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5, borderColor: '#10b981', color: '#047857' }}
+              >
+                <span>📋 Paste dari Excel</span>
+              </button>
+            </div>
 
             <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
               💡 <em>Teks dalam tabel otomatis tersimpan dan terformat rapi pada dokumen resmi / PDF.</em>
             </div>
           </div>
+
+          {/* Paste from Excel Modal */}
+          {pasteModalOpen && (
+            <div className="overlay" style={{ zIndex: 10000 }} onClick={() => setPasteModalOpen(false)}>
+              <div className="modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                  <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>📋 Impor / Paste Tabel dari Excel</span>
+                  </div>
+                  <button className="modal-close" onClick={() => setPasteModalOpen(false)}>×</button>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 12 }}>
+                  Salin (Copy) sel tabel dari Microsoft Excel atau Google Sheets, lalu tempelkan (Ctrl+V) di area bawah ini:
+                </div>
+                <textarea
+                  rows={8}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1.5px solid var(--paper-line)',
+                    borderRadius: 6,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    marginBottom: 12,
+                    background: '#f8fafc',
+                  }}
+                  placeholder="Paste tabel Excel di sini..."
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={hasHeaderRow}
+                      onChange={e => setHasHeaderRow(e.target.checked)}
+                    />
+                    <span>Baris pertama adalah judul kolom (Header)</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setPasteModalOpen(false)}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={handleImportExcel}
+                      disabled={!pasteText.trim()}
+                    >
+                      Impor ke Tabel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Teks penutup setelah tabel jika ada */}
           {suffixText ? (

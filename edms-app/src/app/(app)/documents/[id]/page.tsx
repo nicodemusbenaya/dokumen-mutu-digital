@@ -5,8 +5,9 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import SignaturePad from 'signature_pad';
 import type { DocumentDetail, Approval } from '@/types';
-import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel } from '@/lib/documentTypes';
-import { IconArrowLeft, IconEditor, IconApproval, IconPdf, IconCheck } from '@/components/icons/Icons';
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel } from '@/lib/documentTypes';
+import { canApprove } from '@/lib/rbac';
+import { IconArrowLeft, IconEditor, IconApproval, IconPdf, IconCheck, IconLock } from '@/components/icons/Icons';
 
 const STATUS_CLASS: Record<string, string> = {
   'Draft':'draft','Review':'review','Menunggu Approval':'approval','Aktif':'aktif','Obsolete':'obsolete',
@@ -17,11 +18,12 @@ export default function DocumentDetailPage() {
   const router = useRouter();
   const docId  = params.id as string;
 
-  const [doc,     setDoc]     = useState<DocumentDetail | null>(null);
-  const [tab,     setTab]     = useState('isi');
-  const [loading, setLoading] = useState(true);
-  const [msg,     setMsg]     = useState('');
-  const [msgType, setMsgType] = useState<'ok'|'err'>('ok');
+  const [doc,         setDoc]         = useState<DocumentDetail | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [tab,         setTab]         = useState('isi');
+  const [loading,     setLoading]     = useState(true);
+  const [msg,         setMsg]         = useState('');
+  const [msgType,     setMsgType]     = useState<'ok'|'err'>('ok');
 
   // Approval modal
   const [approvalOpen,  setApprovalOpen]  = useState(false);
@@ -29,6 +31,7 @@ export default function DocumentDetailPage() {
   const [approvalStage, setApprovalStage] = useState<1|2|3>(1);
   const [approvalNote,  setApprovalNote]  = useState('');
   const [approving,     setApproving]     = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Signature pad
   const sigCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,6 +56,15 @@ export default function DocumentDetailPage() {
   }, [docId]);
 
   useEffect(() => { fetchDoc(); }, [fetchDoc]);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (json?.data) setCurrentUser(json.data);
+      })
+      .catch(() => {});
+  }, []);
 
   function notify(text: string, type: 'ok'|'err' = 'ok') {
     setMsg(text); setMsgType(type);
@@ -100,13 +112,20 @@ export default function DocumentDetailPage() {
   const handleApproval = handleApprove;
 
   async function handleGeneratePdf() {
-    const res = await fetch(`/api/documents/${docId}/pdf`, { method: 'POST' });
-    const json = await res.json();
-    if (res.ok) {
-      notify('PDF dokumen berhasil digenerate.');
-      window.open(json.data.url, '_blank');
-    } else {
-      notify(json.error, 'err');
+    setGeneratingPdf(true);
+    try {
+      const res = await fetch(`/api/documents/${docId}/pdf`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        notify('PDF dokumen berhasil digenerate.');
+        window.open(json.data.url, '_blank');
+      } else {
+        notify(json.error || 'Gagal generate PDF.', 'err');
+      }
+    } catch {
+      notify('Gagal menghubungi server. Pastikan Chromium tersedia di server.', 'err');
+    } finally {
+      setGeneratingPdf(false);
     }
   }
 
@@ -125,6 +144,35 @@ export default function DocumentDetailPage() {
   const reviewApproval     = doc.approvals.find((a: Approval) => a.stage === 1 && a.action === 'Approve');
   const mgrApproval        = doc.approvals.find((a: Approval) => a.stage === 2 && a.action === 'Approve');
   const pimpinanApproval   = doc.approvals.find((a: Approval) => a.stage === 3 && a.action === 'Approve');
+
+  // Tentukan stage approval yang sedang aktif
+  let activeStage: 1 | 2 | 3 | null = null;
+  if (doc.status === 'Review') {
+    activeStage = 1;
+  } else if (doc.status === 'Menunggu Approval') {
+    if (!mgrApproval) {
+      activeStage = 2;
+    } else if (!pimpinanApproval) {
+      activeStage = 3;
+    }
+  }
+
+  // Hak aksi pengguna saat ini
+  const userCanApprove = Boolean(
+    currentUser &&
+    activeStage !== null &&
+    canApprove(currentUser.role, activeStage)
+  );
+
+  const docPenyusunId = (doc as any).penyusunId || (doc as any).penyusun_id;
+  const userCanEdit = Boolean(
+    currentUser &&
+    doc.status === 'Draft' &&
+    (
+      currentUser.role === 'Admin Sistem' ||
+      (currentUser.role === 'Penyusun Dokumen' && (!docPenyusunId || docPenyusunId === currentUser.id))
+    )
+  );
 
   return (
     <>
@@ -156,7 +204,7 @@ export default function DocumentDetailPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-          {doc.status === 'Draft' && (
+          {userCanEdit && (
             <>
               <Link href={`/editor/${doc.id}`} className="btn btn-outline btn-sm">
                 <IconEditor size={14} />
@@ -168,22 +216,21 @@ export default function DocumentDetailPage() {
               </button>
             </>
           )}
-          {(doc.status === 'Review' || doc.status === 'Menunggu Approval' || doc.status === 'Aktif') && (
+          {userCanApprove && activeStage && (
             <button
               className="btn btn-primary btn-sm"
               onClick={() => {
-                const stage = doc.status === 'Review' ? 1 : (mgrApproval ? 3 : 2);
-                setApprovalStage(stage as 1|2|3);
+                setApprovalStage(activeStage as 1|2|3);
                 setApprovalOpen(true);
               }}
             >
               <IconApproval size={14} />
-              <span>Berikan Approval</span>
+              <span>{activeStage === 1 ? 'Review & Tinjau Dokumen' : 'Berikan Approval'}</span>
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={handleGeneratePdf}>
+          <button className="btn btn-ghost btn-sm" onClick={handleGeneratePdf} disabled={generatingPdf}>
             <IconPdf size={14} />
-            <span>Generate PDF</span>
+            <span>{generatingPdf ? 'Generating...' : 'Generate PDF'}</span>
           </button>
         </div>
       </div>
@@ -210,26 +257,27 @@ export default function DocumentDetailPage() {
       {tab === 'isi' && (
         <div className="card card-body">
           {(() => {
-            const typeSections = (DOCUMENT_SECTIONS[doc.jenis as DocumentType] || []).map(s => s.key);
-            const docSectionKeys = Object.keys(doc.sections || {});
-            const allKeys = Array.from(new Set([...typeSections, ...docSectionKeys]));
+            const orderedSections = getOrderedSections(doc.jenis, doc.sections);
             
-            if (allKeys.length === 0) {
+            if (orderedSections.length === 0) {
               return <div style={{textAlign:'center',color:'var(--ink-muted)',padding:40}}>Belum ada isi bagian dokumen</div>;
             }
 
-            return allKeys.map(secKey => (
-              <div key={secKey} style={{marginBottom:22}}>
-                <div style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:15,color:'var(--navy)',marginBottom:8,paddingBottom:6,borderBottom:'2px solid var(--paper-line)'}}>
-                  {getSectionLabel(secKey, doc.jenis)}
+            return orderedSections.map((sec, idx) => {
+              const label = getDisplaySectionLabel(sec, idx, doc.jenis);
+              return (
+                <div key={sec.key} style={{marginBottom:22}}>
+                  <div style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:15,color:'var(--navy)',marginBottom:8,paddingBottom:6,borderBottom:'2px solid var(--paper-line)'}}>
+                    {label}
+                  </div>
+                  {doc.sections?.[sec.key] ? (
+                    <div dangerouslySetInnerHTML={{__html: doc.sections[sec.key]}} style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}} />
+                  ) : (
+                    <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>— Belum diisi —</div>
+                  )}
                 </div>
-                {doc.sections?.[secKey] ? (
-                  <div dangerouslySetInnerHTML={{__html: doc.sections[secKey]}} style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}} />
-                ) : (
-                  <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>— Belum diisi —</div>
-                )}
-              </div>
-            ));
+              );
+            });
           })()}
         </div>
       )}
@@ -320,12 +368,42 @@ export default function DocumentDetailPage() {
                   </select>
                 </div>
                 <div className="field">
-                  <label>Stage</label>
-                  <select value={approvalStage} onChange={e => setApprovalStage(Number(e.target.value) as 1|2|3)}>
-                    <option value={1}>Stage 1 — Tim Mutu</option>
-                    <option value={2}>Stage 2 — Manager Bidang</option>
-                    <option value={3}>Stage 3 — Pimpinan Unit</option>
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Tahap Pengesahan</span>
+                    {currentUser?.role !== 'Admin Sistem' && (
+                      <span style={{ fontSize: 11, color: 'var(--ink-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <IconLock size={12} />
+                        <span>Terkunci</span>
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    value={approvalStage}
+                    onChange={e => setApprovalStage(Number(e.target.value) as 1|2|3)}
+                    disabled={currentUser?.role !== 'Admin Sistem'}
+                    style={currentUser?.role !== 'Admin Sistem' ? { backgroundColor: 'var(--paper)', cursor: 'not-allowed', color: 'var(--ink)' } : undefined}
+                  >
+                    <option value={1} disabled={!canApprove(currentUser?.role, 1)}>
+                      Stage 1 — Tim Mutu {!canApprove(currentUser?.role, 1) ? '(Terkunci)' : ''}
+                    </option>
+                    <option value={2} disabled={!canApprove(currentUser?.role, 2)}>
+                      Stage 2 — Manager Bidang {!canApprove(currentUser?.role, 2) ? '(Terkunci)' : ''}
+                    </option>
+                    <option value={3} disabled={!canApprove(currentUser?.role, 3)}>
+                      Stage 3 — Pimpinan Unit {!canApprove(currentUser?.role, 3) ? '(Terkunci)' : ''}
+                    </option>
                   </select>
+                  <div className="field-hint" style={{ fontSize: 11.5, marginTop: 4 }}>
+                    {currentUser?.role === 'Admin Sistem' ? (
+                      <span style={{ color: 'var(--pln-blue)' }}>
+                        Mode Admin Sistem: Bebas memilih stage untuk pengujian alur.
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--ink-soft)' }}>
+                        Stage dikunci otomatis sesuai wewenang peran Anda ({currentUser?.role}).
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="field">

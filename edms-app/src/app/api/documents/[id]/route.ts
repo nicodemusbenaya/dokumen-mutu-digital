@@ -106,10 +106,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return forbidden();
   }
 
-  // Optimistic locking check
-  if (versionNumber !== undefined && doc.version_number !== versionNumber) {
+  // Optimistic locking check (numeric comparison)
+  if (versionNumber !== undefined && Number(doc.version_number) !== Number(versionNumber)) {
     return NextResponse.json({
-      error: 'Konflik: Dokumen ini telah diubah oleh pengguna lain. Muat ulang halaman dan coba lagi.',
+      error: 'Konflik: Dokumen ini telah diubah oleh pengguna lain. Silakan coba simpan kembali.',
       code:  'CONFLICT',
     }, { status: 409 });
   }
@@ -143,10 +143,23 @@ export async function PUT(req: NextRequest, { params }: Params) {
         }
       }
 
-      // Update references
-      if (Array.isArray(refIds)) {
+      // Hapus seksi jika ada permintaan penghapusan seksi kustom
+      if (Array.isArray(body.deletedSectionKeys) && body.deletedSectionKeys.length > 0) {
+        for (const delKey of body.deletedSectionKeys) {
+          if (typeof delKey === 'string' && delKey.trim()) {
+            await conn.execute(
+              'DELETE FROM document_sections WHERE document_id = ? AND section_key = ?',
+              [docId, delKey]
+            );
+          }
+        }
+      }
+
+      // Update references (mendukung refIds maupun references)
+      const targetRefIds = Array.isArray(refIds) ? refIds : (Array.isArray(body.references) ? body.references : null);
+      if (targetRefIds !== null) {
         await conn.execute('DELETE FROM document_references WHERE document_id = ?', [docId]);
-        for (const refId of refIds) {
+        for (const refId of targetRefIds) {
           await conn.execute(
             'INSERT INTO document_references (document_id, reference_id) VALUES (?, ?)',
             [docId, refId]
@@ -163,9 +176,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     // Kembalikan version_number baru
     const updated = await query<any[]>('SELECT version_number FROM documents WHERE id = ?', [docId]);
+    const newVer = updated[0]?.version_number;
 
     return NextResponse.json({
-      data:    { versionNumber: updated[0]?.version_number },
+      data:    { versionNumber: newVer, version: newVer },
       message: 'Dokumen berhasil disimpan.',
     });
   } catch (err: any) {

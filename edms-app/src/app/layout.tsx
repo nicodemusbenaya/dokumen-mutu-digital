@@ -17,6 +17,11 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: 'EDMS — Sistem Dokumen Mutu Digital | PLN UP Sertifikasi',
   description: 'Electronic Document Management System untuk pengelolaan dokumen mutu PLN UP Sertifikasi. Paperless, terstruktur, dan terkendali.',
+  icons: {
+    icon: '/images/logo-pln.png',
+    shortcut: '/images/logo-pln.png',
+    apple: '/images/logo-pln.png',
+  },
   robots: 'noindex, nofollow', // Internal system
 };
 

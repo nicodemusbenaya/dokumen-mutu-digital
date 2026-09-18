@@ -47,11 +47,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Pastikan stage tidak sudah di-approve sebelumnya
   const existingApproval = await query<any[]>(
-    "SELECT id FROM approvals WHERE document_id = ? AND stage = ? AND action = 'Approve'",
-    [docId, stage]
+    "SELECT id FROM approvals WHERE document_id = ? AND stage = ? AND action = 'Approve' AND doc_version = ?",
+    [docId, stage, doc.current_version]
   );
   if (existingApproval.length) {
-    return NextResponse.json({ error: 'Tahap ini sudah disetujui sebelumnya.' }, { status: 409 });
+    return NextResponse.json({ error: 'Tahap ini sudah disetujui sebelumnya untuk versi dokumen ini.' }, { status: 409 });
+  }
+
+  // Pastikan tahapan sebelumnya sudah disetujui secara berurutan
+  if (stage === 2) {
+    const stage1Approval = await query<any[]>(
+      "SELECT id FROM approvals WHERE document_id = ? AND stage = 1 AND action = 'Approve' AND doc_version = ?",
+      [docId, doc.current_version]
+    );
+    if (!stage1Approval.length) {
+      return NextResponse.json({ error: 'Stage 1 (Review Tim Mutu) harus disetujui terlebih dahulu.' }, { status: 409 });
+    }
+  } else if (stage === 3) {
+    const stage2Approval = await query<any[]>(
+      "SELECT id FROM approvals WHERE document_id = ? AND stage = 2 AND action = 'Approve' AND doc_version = ?",
+      [docId, doc.current_version]
+    );
+    if (!stage2Approval.length) {
+      return NextResponse.json({ error: 'Stage 2 (Approval Manager Bidang) harus disetujui terlebih dahulu.' }, { status: 409 });
+    }
   }
 
   // Simpan signature jika ada

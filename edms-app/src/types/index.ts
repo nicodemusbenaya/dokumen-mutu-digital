@@ -3,7 +3,17 @@
 // ─────────────────────────────────────────────────────────────────
 
 export type DocumentStatus = 'Draft' | 'Review' | 'Menunggu Approval' | 'Aktif' | 'Obsolete';
-export type DocumentJenis  = 'SOP/Prosedur' | 'Manual Mutu' | 'Instruksi Kerja' | 'Formulir Kerja' | 'Formulir Tambahan';
+export type DocumentJenis  = 
+  | 'SOP/Prosedur' 
+  | 'Manual Mutu' 
+  | 'Instruksi Kerja' 
+  | 'Formulir Standar (FR.01.04)'
+  | 'Berita Acara Pemusnahan (FR.01.05)'
+  | 'Pernyataan Kerahasiaan (FR.01.06)'
+  | 'Daftar Rekaman Mutu (FR.01.07)'
+  | 'Formulir Kerja' 
+  | 'Formulir Tambahan'
+  | 'BA Pemusnahan Rekaman';
 export type RefKategori    = 'Regulasi' | 'Standar' | 'Internal';
 export type ApprovalStage  = 1 | 2 | 3; // 1=Tim Mutu, 2=Manager, 3=Pimpinan
 

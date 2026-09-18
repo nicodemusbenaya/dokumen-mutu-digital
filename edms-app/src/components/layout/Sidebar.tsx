@@ -24,13 +24,14 @@ interface NavItem {
   label: string;
   perm?: string;
   badgeKey?: string;
+  roles?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',  icon: IconDashboard,  label: 'Dashboard' },
   { href: '/documents',  icon: IconDocuments,  label: 'Daftar Dokumen' },
   { href: '/editor',     icon: IconEditor,     label: 'Editor Dokumen' },
-  { href: '/approval',   icon: IconApproval,   label: 'Approval Mutu', badgeKey: 'approval' },
+  { href: '/approval',   icon: IconApproval,   label: 'Approval Mutu', badgeKey: 'approval', roles: ['Tim Mutu', 'Manager Bidang', 'Pimpinan Unit', 'Admin Sistem'] },
   { href: '/pdf',        icon: IconPdf,        label: 'Lihat & Cetak PDF' },
   { href: '/manage',     icon: IconPeta,       label: 'Peta Dokumen' },
   { href: '/references', icon: IconReferences, label: 'Master Referensi' },
@@ -71,8 +72,9 @@ export default function Sidebar({ user }: { user: SessionUser }) {
   }
 
   const visibleItems = NAV_ITEMS.filter(item => {
-    if (!item.perm) return true;
-    return hasPermission(user.role, item.perm as any);
+    if (item.roles && !item.roles.includes(user.role)) return false;
+    if (item.perm && !hasPermission(user.role, item.perm as any)) return false;
+    return true;
   });
 
   return (

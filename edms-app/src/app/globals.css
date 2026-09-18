@@ -1297,10 +1297,61 @@ tr:last-child td {
   margin-bottom: 30px;
 }
 
+.uncontrolled-notice {
+  font-size: 7.5pt;
+  font-family: Arial, var(--sans), sans-serif;
+  color: #1d4ed8;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  font-weight: 500;
+}
+
+/* Page Break & Section Integrity */
+.doc-section {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.doc-section h4,
+.section-title {
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+@media print {
+  .sidebar, .topbar, .pdf-toolbar, .no-print {
+    display: none !important;
+  }
+  .pdf-wrap {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  .pdf-page {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .doc-section,
+  .pdf-kop,
+  .kop-formulir-table,
+  .pengesahan-box,
+  .pdf-sig-row,
+  .pdf-meta-table,
+  .riwayat-table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  tr, li {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+}
+
 .pdf-controlled {
-  position: absolute;
-  top: 20px;
-  right: 24px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1312,9 +1363,6 @@ tr:last-child td {
 }
 
 .pdf-draft-badge {
-  position: absolute;
-  top: 20px;
-  right: 24px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1479,14 +1527,69 @@ tr:last-child td {
 }
 
 .kop-form-logo {
-  width: 32%;
-  text-align: left;
+  width: 30%;
+  padding: 8px 10px !important;
+}
+
+.kop-logo-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.kop-logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.kop-logo-danantara {
+  height: 20px;
+  width: auto;
+  max-width: 92px;
+  object-fit: contain;
+}
+
+.kop-logo-divider {
+  width: 1.5px;
+  height: 22px;
+  background: #94A3B8;
+}
+
+.kop-logo-pln {
+  height: 26px;
+  width: auto;
+  object-fit: contain;
+}
+
+.kop-logo-text {
+  text-align: center;
+  line-height: 1.25;
+}
+
+.kop-text-pln {
+  font-size: 10px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: 0.4px;
+}
+
+.kop-text-ups {
+  font-size: 9px;
+  font-weight: 700;
+  color: #1E3A8A;
+  letter-spacing: 0.2px;
+  margin-top: 1px;
 }
 
 .kop-form-title {
-  width: 40%;
+  width: 42%;
   text-align: center;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 800;
   color: #0B192C;
   letter-spacing: 0.02em;
@@ -1497,7 +1600,28 @@ tr:last-child td {
   width: 28%;
   font-size: 11px;
   line-height: 1.6;
-  color: #334155;
+  color: #1E293B;
+}
+
+.kop-meta-status {
+  display: inline-block;
+  padding: 1.5px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+}
+
+.kop-meta-status.status-controlled {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+}
+
+.kop-meta-status.status-draft {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FCD34D;
 }
 
 .pdf-sig-row {
@@ -1543,16 +1667,65 @@ tr:last-child td {
 
 /* ── Print Styles ─────────────────────────────────────────── */
 @media print {
-  .sidebar, .topbar, .no-print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: #fff !important;
+  }
+
+  /* Sembunyikan SEMUA elemen UI app — hanya tampilkan isi PDF */
+  .sidebar, .topbar, .no-print,
+  .content-area > *:not(.pdf-wrap),
+  .tab-bar, .notif-bar, .btn, nav, footer, header {
     display: none !important;
   }
+
   .content-area {
     padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
   }
+
+  .pdf-wrap {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   .pdf-page {
     box-shadow: none !important;
     border: none !important;
-    padding: 0 !important;
+    border-radius: 0 !important;
+    padding: 15mm 18mm 20mm !important;
     margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    background: #fff !important;
+    page-break-inside: auto;
+  }
+
+  /* Sembunyikan tombol aksi bar di atas PDF */
+  .pdf-page ~ * {
+    display: none !important;
+  }
+
+  /* Pastikan tabel & konten tidak terpotong */
+  table {
+    page-break-inside: auto !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
+  img {
+    max-width: 100% !important;
   }
 }

@@ -31,14 +31,33 @@ const pool: mysql.Pool =
 
 export default pool;
 
-// ─── Typed query helper ────────────────────────────────────────
+// ─── Typed query helper (with timeout safeguard) ──────────────
+
+const DB_TIMEOUT_MS = 8000; // 8 detik — mencegah hang di Docker jika DB tidak bisa dijangkau
 
 export async function query<T = mysql.RowDataPacket[]>(
   sql: string,
   values?: any[]
 ): Promise<T> {
-  const [rows] = await pool.execute(sql, values as any);
-  return rows as T;
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(Object.assign(new Error('Database query timeout setelah 8 detik'), { code: 'ETIMEDOUT' })),
+      DB_TIMEOUT_MS
+    )
+  );
+  const queryPromise = pool.execute(sql, values as any).then(([rows]) => rows as T);
+  return Promise.race([queryPromise, timeoutPromise]);
+}
+
+// ─── Connection diagnostic helper ─────────────────────────────
+
+export async function testConnection(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await query('SELECT 1');
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: `${err.code ?? 'UNKNOWN'}: ${err.message}` };
+  }
 }
 
 // ─── Transaction helper ────────────────────────────────────────

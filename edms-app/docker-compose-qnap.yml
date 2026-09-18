@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # 1. Layanan Web EDMS Next.js
+  edms-app:
+    image: node:20-alpine
+    container_name: edms-ups-app
+    restart: always
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=host.docker.internal
+      - DB_PORT=3307
+      - DB_NAME=edms_ups
+      - DB_USER=root
+      - DB_PASSWORD=12345678
+      - JWT_SECRET=bff080224bc66715307017bd9ef28b2f14d7c8c5985c00e7afa4a04ab9fc2162
+      - SESSION_COOKIE=edms_session
+      - NEXT_PUBLIC_APP_URL=http://10.10.200.166:3000
+      # Chromium path untuk Puppeteer PDF generation
+      - CHROMIUM_PATH=/usr/bin/chromium-browser
+    volumes:
+      - /share/Container/edms-app:/app
+      - /share/Container/edms-app/storage:/app/storage
+    # Install Chromium + fix symlink Turbopack saat startup
+    command: >
+      sh -c "
+        cd /app &&
+        (which chromium-browser || apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont font-noto-cjk) &&
+        ln -sfn node_modules/mysql2 node_modules/mysql2-3d80281e5ed34ca6 &&
+        ln -sfn node_modules/bcryptjs node_modules/bcryptjs-ee66c2bdc904f2cf &&
+        ln -sfn node_modules/puppeteer-core node_modules/puppeteer-core-3cc12a7b2479c6f0 &&
+        echo 'Symlinks OK' &&
+        node server.js
+      "
+
+  # 2. Layanan Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: edms-cloudflare-tunnel
+    restart: always
+    command: tunnel --no-autoupdate run --token eyJhIjoiNjdjMWU2ZTg5NGI0MTU4MTYyMmJmZWMwNmJhOTVlMDUiLCJ0IjoiZmZhOGUzNjYtNzQwOC00Njg0LWIzMGEtYTU2ZWJmZDA5MzgxIiwicyI6Ik4yUXpNbVJqTm1FdE5USTFaUzAwWTJJM0xXSTJZV010WVdGbFptWXpNVEpoTkRWaSJ9
+    depends_on:
+      - edms-app

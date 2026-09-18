@@ -58,10 +58,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: sessionUser, message: 'Login berhasil.' });
 
   } catch (err: any) {
-    console.error('[POST /api/auth/login]', err);
-    if (err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT') {
-      return NextResponse.json({ error: 'Koneksi ke MariaDB gagal. Pastikan database server aktif dan konfigurasi .env.local sesuai.' }, { status: 503 });
+    console.error('[POST /api/auth/login]', err?.code, err?.message);
+    const code = err?.code ?? 'UNKNOWN';
+    if (code === 'ECONNREFUSED') {
+      return NextResponse.json({ error: `Koneksi DB ditolak (ECONNREFUSED). Host: ${process.env.DB_HOST}:${process.env.DB_PORT}` }, { status: 503 });
     }
-    return NextResponse.json({ error: 'Terjadi kesalahan server.' }, { status: 500 });
+    if (code === 'ETIMEDOUT') {
+      return NextResponse.json({ error: `Koneksi DB timeout. Host: ${process.env.DB_HOST}:${process.env.DB_PORT} tidak merespons dalam 8 detik.` }, { status: 503 });
+    }
+    if (code === 'ENOTFOUND') {
+      return NextResponse.json({ error: `Host DB tidak ditemukan (ENOTFOUND): "${process.env.DB_HOST}". Periksa DB_HOST di environment.` }, { status: 503 });
+    }
+    return NextResponse.json({ error: `Kesalahan server [${code}]: ${err?.message ?? 'Unknown error'}` }, { status: 500 });
   }
 }

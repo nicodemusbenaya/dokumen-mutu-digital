@@ -103,9 +103,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Insert linked references jika ada
-      if (Array.isArray(refIds) && refIds.length > 0) {
-        for (const refId of refIds) {
+      // Insert linked references jika ada (mendukung refIds maupun references)
+      const targetRefIds = Array.isArray(refIds) ? refIds : (Array.isArray(body.references) ? body.references : []);
+      if (targetRefIds.length > 0) {
+        for (const refId of targetRefIds) {
           await conn.execute(
             'INSERT INTO document_references (document_id, reference_id) VALUES (?, ?)',
             [docId, refId]

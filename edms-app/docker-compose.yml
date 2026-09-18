@@ -22,6 +22,8 @@ services:
       - JWT_SECRET=bff080224bc66715307017bd9ef28b2f14d7c8c5985c00e7afa4a04ab9fc2162
       - SESSION_COOKIE=edms_session
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      # Chromium path untuk Puppeteer PDF generation di container Alpine
+      - CHROMIUM_PATH=/usr/bin/chromium-browser
     volumes:
       # Mount storage fisik NAS untuk PDF, attachments, dan signatures (Sesuai Bab 9.5 Spesifikasi)
       - ./storage:/app/storage

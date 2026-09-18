@@ -16,8 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const docId = parseInt(id);
 
-  // Ambil data dokumen + sections + refs + approvals
-  const [docs, sections, refs, approvals] = await Promise.all([
+  // Ambil data dokumen + sections + refs + approvals + versions
+  const [docs, sections, refs, approvals, versions] = await Promise.all([
     query<any[]>(
       `SELECT d.*, u.full_name AS penyusun_name
        FROM documents d LEFT JOIN users u ON u.id = d.penyusun_id
@@ -36,6 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
        FROM approvals a JOIN users u ON u.id = a.actor_id
        WHERE a.document_id = ? AND a.action = 'Approve'
        ORDER BY a.stage`, [docId]
+    ),
+    query<any[]>(
+      'SELECT * FROM document_versions WHERE document_id = ? ORDER BY id ASC', [docId]
     ),
   ]);
 
@@ -83,9 +86,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     bidang:   doc.bidang,
     versi:    doc.current_version,
     status:   doc.status,
+    createdAt:doc.created_at,
     updatedAt:doc.updated_at,
     sections: sectionsMap,
     refs,
+    versions: versions || [],
     penyusun: doc.penyusun_name,
     mgrApprover:       mgrApproval?.actor_name ?? null,
     mgrSignature:      mgrSignatureDataUrl,

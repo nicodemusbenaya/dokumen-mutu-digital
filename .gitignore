@@ -27,3 +27,9 @@ yarn-error.log*
 next-env.d.ts
 .DS_Store
 *.pem
+cookies.txt
+
+# Standalone build archives and temp files
+*.zip
+edms-standalone-qnap/
+**/extracted_media/
