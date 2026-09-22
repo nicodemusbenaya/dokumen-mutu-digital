@@ -22,44 +22,51 @@ const FORMULIR_TYPES = new Set([
   'Formulir Tambahan'
 ]);
 
-const FORMULIR_OFFICIAL_HEADERS: Record<string, { title: string; formNo: string }> = {
-  'Formulir Standar (FR.01.04)': {
-    title: 'FORMULIR REKAMAN MUTU STANDAR',
-    formNo: 'FR.UPS.SER3.BMK.01.04-00'
-  },
-  'Berita Acara Pemusnahan (FR.01.05)': {
-    title: 'FORMULIR BERITA ACARA<br>PEMUSNAHAN REKAMAN MUTU',
-    formNo: 'FR.UPS.SER3.BMK.01.05-00'
-  },
-  'Pernyataan Kerahasiaan (FR.01.06)': {
-    title: 'FORMULIR PERNYATAAN KERAHASIAAN',
-    formNo: 'FR.UPS.SER3.BMK.01.06-00'
-  },
-  'Daftar Rekaman Mutu (FR.01.07)': {
-    title: 'DAFTAR REKAMAN MUTU',
-    formNo: 'FR.UPS.SER3.BMK.01.07-00'
-  },
-  'BA Pemusnahan Rekaman': {
-    title: 'FORMULIR BERITA ACARA<br>PEMUSNAHAN REKAMAN MUTU',
-    formNo: 'FR.UPS.SER3.BMK.01.05-00'
-  },
-  'Pernyataan Kerahasiaan': {
-    title: 'FORMULIR PERNYATAAN KERAHASIAAN',
-    formNo: 'FR.UPS.SER3.BMK.01.06-00'
-  },
-  'Daftar Rekaman Mutu': {
-    title: 'DAFTAR REKAMAN MUTU',
-    formNo: 'FR.UPS.SER3.BMK.01.07-00'
-  },
-  'Formulir Kerja': {
-    title: 'FORMULIR REKAMAN MUTU STANDAR',
-    formNo: 'FR.UPS.SER3.BMK.01.04-00'
-  },
-  'Formulir Tambahan': {
-    title: 'FORMULIR REKAMAN MUTU TAMBAHAN',
-    formNo: 'FR.UPS.SER3.BMK.01.XX-00'
+function getOfficialHeaderTitles(doc: any): { category: string; title: string } {
+  const jenis = (doc?.jenis || '').trim();
+  const judul = (doc?.judul || '').trim().toUpperCase();
+
+  if (jenis === 'SOP/Prosedur' || jenis.toLowerCase().includes('prosedur')) {
+    return {
+      category: 'FORMULIR DOKUMEN PROSEDUR',
+      title: judul
+    };
   }
-};
+  if (jenis === 'Manual Mutu' || jenis.toLowerCase().includes('manual mutu')) {
+    return {
+      category: 'FORMULIR DOKUMEN MUTU',
+      title: judul
+    };
+  }
+  if (jenis === 'Instruksi Kerja' || jenis.toLowerCase().includes('instruksi')) {
+    return {
+      category: 'FORMULIR DOKUMEN INTRUKSI KERJA',
+      title: judul
+    };
+  }
+  if (jenis.includes('FR.01.05') || jenis.includes('Pemusnahan') || jenis.includes('BA Pemusnahan')) {
+    return {
+      category: 'FORMULIR BERITA ACARA',
+      title: 'PEMUSNAHAN REKAMAN MUTU'
+    };
+  }
+  if (jenis.includes('FR.01.06') || jenis.includes('Kerahasiaan')) {
+    return {
+      category: 'FORMULIR PERNYATAAN KERAHASIAAN',
+      title: judul
+    };
+  }
+  if (jenis.includes('FR.01.07') || jenis.includes('Daftar Rekaman')) {
+    return {
+      category: 'DAFTAR REKAMAN MUTU',
+      title: judul
+    };
+  }
+  return {
+    category: 'FORMULIR',
+    title: judul
+  };
+}
 
 function RevisionTableComponent({ rows }: { rows: RevisionRow[] }) {
   return (
@@ -173,7 +180,7 @@ export default function PdfPreviewPage() {
 
   // Get approval signature details
   const mutuAppr = doc?.approvals?.find(a => a.stage === 1 && a.action === 'Approve');
-  const mgrAppr  = doc?.approvals?.find(a => a.stage === 2 && a.action === 'Approve');
+  const mgrAppr = doc?.approvals?.find(a => a.stage === 2 && a.action === 'Approve');
   const pimpAppr = doc?.approvals?.find(a => a.stage === 3 && a.action === 'Approve');
 
   // Filtered documents based on search
@@ -336,10 +343,7 @@ export default function PdfPreviewPage() {
 
             {(() => {
               const isFormulir = FORMULIR_TYPES.has(doc.jenis);
-              const formHeader = FORMULIR_OFFICIAL_HEADERS[doc.jenis] || {
-                title: `FORMULIR ${doc.judul.toUpperCase()}`,
-                formNo: doc.kode
-              };
+              const headerTitles = getOfficialHeaderTitles(doc);
               const formattedDate = doc.updatedAt
                 ? new Date(doc.updatedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
                 : '-';
@@ -351,44 +355,29 @@ export default function PdfPreviewPage() {
                     <table className="kop-formulir-table">
                       <tbody>
                         <tr>
-                          <td className="kop-form-logo">
-                            <div className="kop-logo-box">
-                              <div className="kop-logo-row">
-                                <Image
-                                  src="/images/logo-danantara.svg"
-                                  alt="Danantara Indonesia"
-                                  width={90}
-                                  height={20}
-                                  className="kop-logo-danantara"
-                                  style={{ height: 20, width: 'auto', objectFit: 'contain' }}
-                                />
-                                <div className="kop-logo-divider" />
-                                <Image
-                                  src="/images/logo-pln.png"
-                                  alt="PLN"
-                                  width={26}
-                                  height={26}
-                                  className="kop-logo-pln"
-                                  style={{ height: 26, width: 'auto', objectFit: 'contain' }}
-                                />
-                              </div>
-                              <div className="kop-logo-text">
-                                <div className="kop-text-pln">PT PLN (PERSERO)</div>
-                                <div className="kop-text-ups">UNIT PELAKSANA SERTIFIKASI</div>
-                              </div>
-                              <div className="uncontrolled-notice" style={{ marginTop: 4, textAlign: 'center' }}>
-                                Uncontrolled when printed or downloaded
-                              </div>
-                            </div>
+                          <td className="kop-form-logo" rowSpan={2}>
+                            <Image
+                              src="/images/logo-pln-vertical.png"
+                              alt="Logo PLN"
+                              width={46}
+                              height={62}
+                              className="kop-logo-vertical"
+                              style={{ height: 52, width: 'auto', objectFit: 'contain', margin: '0 auto', display: 'block' }}
+                            />
                           </td>
-                          <td className="kop-form-title">
-                            <div dangerouslySetInnerHTML={{ __html: formHeader.title }} />
+                          <td className="kop-form-title" rowSpan={2}>
+                            <div className="kop-main-title">{headerTitles.category}</div>
+                            {headerTitles.title && headerTitles.title !== headerTitles.category && (
+                              <div className="kop-sub-title">{headerTitles.title}</div>
+                            )}
                           </td>
                           <td className="kop-form-meta">
-                            <div><strong>Nomor:</strong> {formHeader.formNo}</div>
-                            <div><strong>Tanggal:</strong> {formattedDate}</div>
-                            <div><strong>Halaman:</strong> 1 dari 1</div>
-                            <div><strong>Status:</strong> <span className={`kop-meta-status ${doc.status === 'Aktif' ? 'status-controlled' : 'status-draft'}`}>{doc.status === 'Aktif' ? 'Controlled' : doc.status}</span></div>
+                            <strong>Nomor:</strong> {doc.kode || '—'}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="kop-form-meta">
+                            <strong>Tanggal:</strong> {formattedDate}
                           </td>
                         </tr>
                       </tbody>
@@ -480,66 +469,37 @@ export default function PdfPreviewPage() {
               // Untuk SOP / Prosedur / IK / Manual Mutu
               return (
                 <>
-                  {/* Kop Surat Resmi Standard */}
-                  <div className="pdf-kop">
-                    <div className="pdf-kop-left">
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <Image
-                            src="/images/logo-danantara.svg"
-                            alt="Logo Danantara Indonesia"
-                            width={130}
-                            height={32}
-                            className="pdf-kop-logo-img"
-                            style={{ height: 32, width: 'auto' }}
-                          />
-                          <div className="pdf-kop-divider" />
-                          <Image
-                            src="/images/logo-pln.png"
-                            alt="Logo PLN"
-                            width={36}
-                            height={36}
-                            className="pdf-kop-logo-img"
-                            style={{ height: 36, width: 'auto' }}
-                          />
-                        </div>
-                        <div className="uncontrolled-notice" style={{ marginTop: 4 }}>
-                          Uncontrolled when printed or downloaded
-                        </div>
-                      </div>
-                      <div className="pdf-kop-text">
-                        <h3>PT PLN (PERSERO) UNIT PELAKSANA SERTIFIKASI</h3>
-                        <p>SISTEM MANAJEMEN TERINTEGRASI — DOKUMEN MUTU TERKENDALI</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Metadata Table */}
-                  <table className="pdf-meta-table">
+                  {/* Kop Formulir Kotak 3-Kolom Baku PLN UP Sertifikasi */}
+                  <table className="kop-formulir-table">
                     <tbody>
                       <tr>
-                        <td>Kode Dokumen</td>
-                        <td><strong>{doc.kode}</strong></td>
-                        <td>Versi</td>
-                        <td>v{doc.currentVersion || (doc as any).current_version}</td>
+                        <td className="kop-form-logo" rowSpan={2}>
+                          <Image
+                            src="/images/logo-pln-vertical.png"
+                            alt="Logo PLN"
+                            width={46}
+                            height={62}
+                            className="kop-logo-vertical"
+                            style={{ height: 52, width: 'auto', objectFit: 'contain', margin: '0 auto', display: 'block' }}
+                          />
+                        </td>
+                        <td className="kop-form-title" rowSpan={2}>
+                          <div className="kop-main-title">{headerTitles.category}</div>
+                          {headerTitles.title && headerTitles.title !== headerTitles.category && (
+                            <div className="kop-sub-title">{headerTitles.title}</div>
+                          )}
+                        </td>
+                        <td className="kop-form-meta">
+                          <strong>Nomor:</strong> {doc.kode || '—'}
+                        </td>
                       </tr>
                       <tr>
-                        <td>Jenis Dokumen</td>
-                        <td>{doc.jenis}</td>
-                        <td>Status</td>
-                        <td><strong>{doc.status}</strong></td>
-                      </tr>
-                      <tr>
-                        <td>Bidang Pemilik</td>
-                        <td>{doc.bidang}</td>
-                        <td>Tanggal Terbit / Update</td>
-                        <td>{formattedDate}</td>
+                        <td className="kop-form-meta">
+                          <strong>Tanggal:</strong> {formattedDate}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
-
-                  {/* Title */}
-                  <div className="pdf-title">{doc.judul.toUpperCase()}</div>
 
                   {/* Lembar Pengesahan Resmi */}
                   <div style={{ margin: '18px 0 16px' }}>
@@ -700,6 +660,31 @@ export default function PdfPreviewPage() {
                   <div className="pdf-sig-title">Senior Manager / General Manager</div>
                 </div>
               </div>
+            </div>
+
+            {/* Footer Resmi 2-Kolom Sesuai Formulir Baku PLN UP Sertifikasi */}
+            <div className="doc-footer" style={{ position: 'sticky', bottom: 0, background: '#fff', zIndex: 5 }}>
+              <table className="doc-footer-table">
+                <tbody>
+                  <tr>
+                    <td className="footer-left" rowSpan={2}>
+                      Dokumen ini merupakan hak milik dari PT PLN (Persero) UP Sertifikasi. Dilarang memperbanyak dan menyebarkan dalam bentuk apapun baik secara elektronik maupun mekanik serta dilarang menyebarkan dokumen ini kepada pihak lain tanpa izin tertulis dari PT PLN (Persero) UP Sertifikasi.
+                    </td>
+                    <td className="footer-right-top">
+                      <div className="footer-right-flex">
+                        <span>Rev. {String(doc.currentVersion || (doc as any).current_version || '00').padStart(2, '0')}</span>
+                        <span>Hal. <strong>1</strong> dari <strong>1</strong></span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="footer-right-bottom">
+                      Paraf :
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="footer-uncontrolled-notice">Uncontrolled when printed or downloaded</div>
             </div>
           </div>
         </div>

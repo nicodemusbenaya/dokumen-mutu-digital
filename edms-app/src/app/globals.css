@@ -6,52 +6,52 @@
 
 :root {
   /* Corporate Palette */
-  --navy:         #0B192C;
-  --navy-deep:    #060E18;
-  --navy-mid:     #1E293B;
-  --navy-slate:   #334155;
-  --navy-glass:   rgba(11, 25, 44, 0.94);
+  --navy: #0B192C;
+  --navy-deep: #060E18;
+  --navy-mid: #1E293B;
+  --navy-slate: #334155;
+  --navy-glass: rgba(11, 25, 44, 0.94);
 
   /* PLN & Brand Accents */
-  --pln-blue:     #0284C7;
-  --pln-blue-dark:#0369A1;
-  --pln-blue-soft:#E0F2FE;
-  --pln-blue-glow:rgba(2, 132, 199, 0.16);
+  --pln-blue: #0284C7;
+  --pln-blue-dark: #0369A1;
+  --pln-blue-soft: #E0F2FE;
+  --pln-blue-glow: rgba(2, 132, 199, 0.16);
 
-  --amber:        #D97706;
-  --amber-dark:   #B45309;
-  --amber-soft:   #FEF3C7;
-  --amber-glow:   rgba(217, 119, 6, 0.16);
+  --amber: #D97706;
+  --amber-dark: #B45309;
+  --amber-soft: #FEF3C7;
+  --amber-glow: rgba(217, 119, 6, 0.16);
 
-  --danantara-red:#BE123C;
-  --danantara-soft:#FFE4E6;
+  --danantara-red: #BE123C;
+  --danantara-soft: #FFE4E6;
 
   /* Status Colors */
-  --green:        #16A34A;
-  --green-dark:   #15803D;
-  --green-soft:   #DCFCE7;
+  --green: #16A34A;
+  --green-dark: #15803D;
+  --green-soft: #DCFCE7;
   --green-border: #BBF7D0;
 
-  --red:          #DC2626;
-  --red-dark:     #B91C1C;
-  --red-soft:     #FEE2E2;
-  --red-border:   #FECACA;
+  --red: #DC2626;
+  --red-dark: #B91C1C;
+  --red-soft: #FEE2E2;
+  --red-border: #FECACA;
 
   /* Surfaces & Neutrals */
-  --paper:        #F8FAFC;
+  --paper: #F8FAFC;
   --paper-subtle: #F1F5F9;
-  --paper-line:   #E2E8F0;
-  --paper-line-dark:#CBD5E1;
-  --card:         #FFFFFF;
+  --paper-line: #E2E8F0;
+  --paper-line-dark: #CBD5E1;
+  --card: #FFFFFF;
 
   /* Typography */
-  --ink:          #0F172A;
-  --ink-mid:      #334155;
-  --ink-soft:     #64748B;
-  --ink-muted:    #94A3B8;
+  --ink: #0F172A;
+  --ink-mid: #334155;
+  --ink-soft: #64748B;
+  --ink-muted: #94A3B8;
 
-  --sans:         -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono:         ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Geometry & Radii */
   --r-xs: 4px;
@@ -67,16 +67,18 @@
   --sh-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
 
   /* Shell Measurements */
-  --sidebar-w:  256px;
-  --header-h:   64px;
+  --sidebar-w: 256px;
+  --header-h: 64px;
 
   /* Transitions */
   --t-fast: .15s ease;
-  --t-med:  .25s ease;
+  --t-med: .25s ease;
 }
 
 /* ── Reset & Base ─────────────────────────────────────────── */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -89,9 +91,9 @@ html {
 
 body {
   font-family: var(--sans);
-  background:  var(--paper);
-  color:       var(--ink);
-  min-height:  100vh;
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -99,7 +101,14 @@ body {
 }
 
 /* Tabular figures for tables, counters, dates, and codes */
-table, .stat-value, .badge, .dcode, .meta-table, .pdf-meta-table, .timeline, .vhist {
+table,
+.stat-value,
+.badge,
+.dcode,
+.meta-table,
+.pdf-meta-table,
+.timeline,
+.vhist {
   font-variant-numeric: tabular-nums;
 }
 
@@ -114,13 +123,16 @@ table, .stat-value, .badge, .dcode, .meta-table, .pdf-meta-table, .timeline, .vh
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #CBD5E1;
   border-radius: 999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
@@ -136,13 +148,18 @@ button {
   cursor: pointer;
   border: none;
 }
-input, select, textarea {
+
+input,
+select,
+textarea {
   font-family: var(--sans);
 }
+
 a {
   color: inherit;
   text-decoration: none;
 }
+
 img {
   display: block;
   max-width: 100%;
@@ -588,6 +605,7 @@ img {
   border-color: var(--pln-blue-dark);
   box-shadow: 0 1px 2px rgba(2, 132, 199, 0.2);
 }
+
 .btn-primary:hover {
   background: var(--pln-blue-dark);
   box-shadow: 0 3px 8px rgba(2, 132, 199, 0.3);
@@ -598,6 +616,7 @@ img {
   color: #FFFFFF;
   border-color: var(--amber-dark);
 }
+
 .btn-amber:hover {
   background: var(--amber-dark);
   box-shadow: 0 3px 8px rgba(217, 119, 6, 0.3);
@@ -608,6 +627,7 @@ img {
   color: var(--pln-blue);
   border-color: var(--paper-line-dark);
 }
+
 .btn-outline:hover {
   border-color: var(--pln-blue);
   background: var(--pln-blue-soft);
@@ -618,6 +638,7 @@ img {
   color: var(--ink-soft);
   border-color: var(--paper-line);
 }
+
 .btn-ghost:hover {
   background: var(--paper-subtle);
   border-color: var(--paper-line-dark);
@@ -629,6 +650,7 @@ img {
   color: #FFFFFF;
   border-color: var(--red-dark);
 }
+
 .btn-danger:hover {
   background: var(--red-dark);
 }
@@ -638,6 +660,7 @@ img {
   color: #FFFFFF;
   border-color: var(--green-dark);
 }
+
 .btn-green:hover {
   background: var(--green-dark);
 }
@@ -720,7 +743,8 @@ table {
   border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
   text-align: left;
   padding: 12px 16px;
   font-size: 12.5px;
@@ -769,7 +793,9 @@ tr:last-child td {
   margin-bottom: 6px;
 }
 
-.field input, .field select, .field textarea {
+.field input,
+.field select,
+.field textarea {
   width: 100%;
   padding: 9px 12px;
   border-radius: var(--r-md);
@@ -781,7 +807,9 @@ tr:last-child td {
   transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
-.field input:focus, .field select:focus, .field textarea:focus {
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
   border-color: var(--pln-blue);
   box-shadow: 0 0 0 3px var(--pln-blue-glow);
 }
@@ -816,8 +844,13 @@ tr:last-child td {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .modal {
@@ -872,8 +905,15 @@ tr:last-child td {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Stats Grid ───────────────────────────────────────────── */
@@ -1110,8 +1150,15 @@ tr:last-child td {
 }
 
 @keyframes notifIn {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* ── Manage Layout & Tree Explorer ────────────────────────── */
@@ -1198,11 +1245,25 @@ tr:last-child td {
   flex-shrink: 0;
 }
 
-.dot-aktif    { background: var(--green); }
-.dot-draft    { background: var(--ink-muted); }
-.dot-review   { background: var(--amber); }
-.dot-approval { background: var(--pln-blue); }
-.dot-obsolete { background: var(--red); }
+.dot-aktif {
+  background: var(--green);
+}
+
+.dot-draft {
+  background: var(--ink-muted);
+}
+
+.dot-review {
+  background: var(--amber);
+}
+
+.dot-approval {
+  background: var(--pln-blue);
+}
+
+.dot-obsolete {
+  background: var(--red);
+}
 
 /* ── Document Details Panel ───────────────────────────────── */
 .doc-detail-head {
@@ -1319,18 +1380,25 @@ tr:last-child td {
 }
 
 @media print {
-  .sidebar, .topbar, .pdf-toolbar, .no-print {
+
+  .sidebar,
+  .topbar,
+  .pdf-toolbar,
+  .no-print {
     display: none !important;
   }
+
   .pdf-wrap {
     padding: 0 !important;
     background: transparent !important;
   }
+
   .pdf-page {
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
   }
+
   .doc-section,
   .pdf-kop,
   .kop-formulir-table,
@@ -1341,11 +1409,19 @@ tr:last-child td {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
-  tr, li {
+
+  tr,
+  li {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
@@ -1430,7 +1506,8 @@ tr:last-child td {
   border: 1px solid var(--paper-line);
 }
 
-.pdf-meta-table td:first-child, .pdf-meta-table td:nth-child(3) {
+.pdf-meta-table td:first-child,
+.pdf-meta-table td:nth-child(3) {
   font-weight: 700;
   background: #F8FAFC;
   width: 22%;
@@ -1468,20 +1545,30 @@ tr:last-child td {
 }
 
 /* ── Styling Tabel Dokumen Mutu Terkendali (PDF, Web Preview & Editor) ── */
-.pdf-body table, .doc-body table, .tiptap table {
+.pdf-body table,
+.doc-body table,
+.tiptap table {
   width: 100% !important;
   border-collapse: collapse !important;
   margin: 16px 0 20px !important;
   font-size: 13px !important;
 }
 
-.pdf-body table, .pdf-body th, .pdf-body td,
-.doc-body table, .doc-body th, .doc-body td,
-.tiptap table, .tiptap th, .tiptap td {
+.pdf-body table,
+.pdf-body th,
+.pdf-body td,
+.doc-body table,
+.doc-body th,
+.doc-body td,
+.tiptap table,
+.tiptap th,
+.tiptap td {
   border: 1px solid #334155;
 }
 
-.pdf-body th, .doc-body th, .tiptap th {
+.pdf-body th,
+.doc-body th,
+.tiptap th {
   background-color: #F1F5F9 !important;
   color: #0F172A !important;
   font-weight: 700 !important;
@@ -1492,7 +1579,9 @@ tr:last-child td {
   line-height: 1.4 !important;
 }
 
-.pdf-body td, .doc-body td, .tiptap td {
+.pdf-body td,
+.doc-body td,
+.tiptap td {
   padding: 9px 14px !important;
   font-size: 12.5px !important;
   color: #1E293B !important;
@@ -1500,15 +1589,21 @@ tr:last-child td {
   line-height: 1.55 !important;
 }
 
-.pdf-body table[style*="border:none"], .pdf-body table[style*="border: none"],
-.doc-body table[style*="border:none"], .doc-body table[style*="border: none"],
-.tiptap table[style*="border:none"], .tiptap table[style*="border: none"] {
+.pdf-body table[style*="border:none"],
+.pdf-body table[style*="border: none"],
+.doc-body table[style*="border:none"],
+.doc-body table[style*="border: none"],
+.tiptap table[style*="border:none"],
+.tiptap table[style*="border: none"] {
   border: none !important;
 }
 
-.pdf-body table[style*="border:none"] td, .pdf-body table[style*="border: none"] td,
-.doc-body table[style*="border:none"] td, .doc-body table[style*="border: none"] td,
-.tiptap table[style*="border:none"] td, .tiptap table[style*="border: none"] td {
+.pdf-body table[style*="border:none"] td,
+.pdf-body table[style*="border: none"] td,
+.doc-body table[style*="border:none"] td,
+.doc-body table[style*="border: none"] td,
+.tiptap table[style*="border:none"] td,
+.tiptap table[style*="border: none"] td {
   border: none !important;
 }
 
@@ -1516,112 +1611,134 @@ tr:last-child td {
 .kop-formulir-table {
   width: 100% !important;
   border-collapse: collapse !important;
-  margin-bottom: 24px !important;
-  border: 2px solid #000 !important;
+  margin-bottom: 20px !important;
+  border: 1px solid #000 !important;
+  opacity: 0.88 !important;
 }
 
 .kop-formulir-table td {
   border: 1px solid #000 !important;
+  padding: 8px 12px !important;
+  vertical-align: middle !important;
+  opacity: 0.88 !important;
+}
+
+.kop-form-logo {
+  width: 11% !important;
+  text-align: center !important;
+  padding: 6px 8px !important;
+  vertical-align: middle !important;
+}
+
+.kop-logo-vertical {
+  height: 52px;
+  width: auto;
+  max-width: 48px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  opacity: 0.88 !important;
+}
+
+.kop-form-title {
+  width: 56% !important;
+  text-align: center !important;
   padding: 10px 14px !important;
   vertical-align: middle !important;
 }
 
-.kop-form-logo {
-  width: 30%;
-  padding: 8px 10px !important;
-}
-
-.kop-logo-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.kop-logo-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 5px;
-}
-
-.kop-logo-danantara {
-  height: 20px;
-  width: auto;
-  max-width: 92px;
-  object-fit: contain;
-}
-
-.kop-logo-divider {
-  width: 1.5px;
-  height: 22px;
-  background: #94A3B8;
-}
-
-.kop-logo-pln {
-  height: 26px;
-  width: auto;
-  object-fit: contain;
-}
-
-.kop-logo-text {
-  text-align: center;
+.kop-main-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #000;
+  letter-spacing: 0.02em;
   line-height: 1.25;
 }
 
-.kop-text-pln {
-  font-size: 10px;
-  font-weight: 800;
-  color: #0F172A;
-  letter-spacing: 0.4px;
-}
-
-.kop-text-ups {
-  font-size: 9px;
+.kop-sub-title {
+  font-size: 12px;
   font-weight: 700;
-  color: #1E3A8A;
-  letter-spacing: 0.2px;
-  margin-top: 1px;
-}
-
-.kop-form-title {
-  width: 42%;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-  color: #0B192C;
+  color: #000;
+  margin-top: 3px;
   letter-spacing: 0.02em;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 
 .kop-form-meta {
-  width: 28%;
-  font-size: 11px;
-  line-height: 1.6;
-  color: #1E293B;
+  width: 33% !important;
+  font-size: 11.5px !important;
+  line-height: 1.5 !important;
+  color: #000 !important;
+  padding: 6px 12px !important;
+  vertical-align: middle !important;
 }
 
-.kop-meta-status {
-  display: inline-block;
-  padding: 1.5px 7px;
-  border-radius: 4px;
-  font-weight: 700;
-  font-size: 9.5px;
-  letter-spacing: 0.03em;
+/* Footer Resmi 2-Kolom Sesuai Formulir Baku PLN UP Sertifikasi */
+.doc-footer {
+  margin-top: 32px !important;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+  opacity: 0.88 !important;
+  width: 100% !important;
 }
 
-.kop-meta-status.status-controlled {
-  background: #DCFCE7;
-  color: #15803D;
-  border: 1px solid #86EFAC;
+.doc-footer-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1px solid #000 !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 10px !important;
+  margin: 0 !important;
+  opacity: 0.88 !important;
 }
 
-.kop-meta-status.status-draft {
-  background: #FEF3C7;
-  color: #B45309;
-  border: 1px solid #FCD34D;
+.doc-footer-table td {
+  border: 1px solid #000 !important;
+  padding: 6px 10px !important;
+  line-height: 1.4 !important;
+  color: #262626 !important;
+  vertical-align: middle !important;
+  opacity: 0.88 !important;
+}
+
+.footer-left {
+  width: 50% !important;
+  font-size: 10px !important;
+  text-align: justify !important;
+}
+
+.footer-right-top {
+  width: 50% !important;
+  font-size: 10px !important;
+  text-align: right !important;
+  padding: 6px 10px !important;
+  border-bottom: 1px solid #000 !important;
+}
+
+.footer-right-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.footer-right-bottom {
+  width: 50% !important;
+  text-align: left !important;
+  font-size: 10px !important;
+  height: 28px !important;
+  vertical-align: top !important;
+  padding: 4px 10px !important;
+}
+
+.footer-uncontrolled-notice {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  color: #4472c4;
+  margin-top: 4px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  opacity: 0.88 !important;
 }
 
 .pdf-sig-row {
@@ -1672,7 +1789,8 @@ tr:last-child td {
     print-color-adjust: exact !important;
   }
 
-  html, body {
+  html,
+  body {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
@@ -1681,9 +1799,16 @@ tr:last-child td {
   }
 
   /* Sembunyikan SEMUA elemen UI app — hanya tampilkan isi PDF */
-  .sidebar, .topbar, .no-print,
-  .content-area > *:not(.pdf-wrap),
-  .tab-bar, .notif-bar, .btn, nav, footer, header {
+  .sidebar,
+  .topbar,
+  .no-print,
+  .content-area>*:not(.pdf-wrap),
+  .tab-bar,
+  .notif-bar,
+  .btn,
+  nav,
+  footer,
+  header {
     display: none !important;
   }
 
@@ -1714,7 +1839,7 @@ tr:last-child td {
   }
 
   /* Sembunyikan tombol aksi bar di atas PDF */
-  .pdf-page ~ * {
+  .pdf-page~* {
     display: none !important;
   }
 
@@ -1722,9 +1847,11 @@ tr:last-child td {
   table {
     page-break-inside: auto !important;
   }
+
   tr {
     page-break-inside: avoid !important;
   }
+
   img {
     max-width: 100% !important;
   }
