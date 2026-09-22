@@ -377,10 +377,6 @@ function buildPdfHtml(doc: PdfDocumentData, logos: { danantara: string; pln: str
 <head>
 <meta charset="UTF-8">
 <style>
-  @page {
-    size: A4 portrait;
-    margin: 16mm 18mm 18mm 18mm;
-  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1A1A1A; line-height: 1.55; opacity: 1; }
   .page { padding: 0; position: relative; width: 100%; opacity: 1; }
@@ -488,6 +484,10 @@ export async function generatePdf(
   const page = await browser.newPage();
   try {
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.waitForFunction(() => {
+      const imgs = document.querySelectorAll('img');
+      return Array.from(imgs).every(img => img.complete && img.naturalHeight !== 0);
+    }, { timeout: 10000 }).catch(() => {});
     await page.pdf({
       path: filePath,
       format: 'A4',

@@ -51,8 +51,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const mgrApproval     = approvals.find((a: any) => a.stage === 2);
   const pimpinanApproval= approvals.find((a: any) => a.stage === 3);
 
-  // Build base URL for signature images
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  // Build base URL for signature images (use localhost for Puppeteer inside container)
+  const baseUrl = 'http://localhost:3000';
 
   // Muat gambar tanda tangan ke base64 agar zero latency dan offline-safe di Puppeteer
   let mgrSignatureDataUrl: string | null = null;
@@ -61,8 +61,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const cleanPath = mgrApproval.signature_path.replace(/^\//, '');
       const filePath = path.join(process.cwd(), 'public', cleanPath);
       const fileBuf = await fs.readFile(filePath);
-      mgrSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
-    } catch {
+      if (fileBuf.length > 200) {
+        mgrSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
+      } else {
+        console.warn(`[PDF] Signature file too small (${fileBuf.length} bytes), using HTTP fallback: ${filePath}`);
+        mgrSignatureDataUrl = `${baseUrl}${mgrApproval.signature_path}`;
+      }
+    } catch (e) {
+      console.error(`[PDF] Failed to read signature file:`, e);
       mgrSignatureDataUrl = `${baseUrl}${mgrApproval.signature_path}`;
     }
   }
@@ -73,8 +79,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const cleanPath = pimpinanApproval.signature_path.replace(/^\//, '');
       const filePath = path.join(process.cwd(), 'public', cleanPath);
       const fileBuf = await fs.readFile(filePath);
-      pimpinanSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
-    } catch {
+      if (fileBuf.length > 200) {
+        pimpinanSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
+      } else {
+        console.warn(`[PDF] Signature file too small (${fileBuf.length} bytes), using HTTP fallback: ${filePath}`);
+        pimpinanSignatureDataUrl = `${baseUrl}${pimpinanApproval.signature_path}`;
+      }
+    } catch (e) {
+      console.error(`[PDF] Failed to read signature file:`, e);
       pimpinanSignatureDataUrl = `${baseUrl}${pimpinanApproval.signature_path}`;
     }
   }
