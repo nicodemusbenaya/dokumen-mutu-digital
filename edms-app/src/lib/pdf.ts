@@ -48,7 +48,10 @@ async function findChromiumPath(): Promise<string> {
   );
 }
 
+let cachedBrowser: any = null;
 async function getBrowser() {
+  if (cachedBrowser && cachedBrowser.connected) return cachedBrowser;
+
   const puppeteer = await import('puppeteer-core');
   const p = (puppeteer as any).default || puppeteer;
   const launch = p.launch || p.default?.launch;
@@ -56,7 +59,7 @@ async function getBrowser() {
   const executablePath = await findChromiumPath();
   const isDocker = process.env.DOCKER === 'true' || process.platform === 'linux';
 
-  return launch({
+  cachedBrowser = await launch({
     headless: true,
     executablePath,
     args: [
@@ -73,6 +76,7 @@ async function getBrowser() {
     timeout: 60000,
     protocolTimeout: 60000,
   });
+  return cachedBrowser;
 }
 
 export interface PdfDocumentData {
@@ -481,19 +485,20 @@ export async function generatePdf(
   const headerTemplate = buildHeaderTemplate(doc, logos);
   const footerTemplate = buildFooterTemplate(doc);
   const browser = await getBrowser();
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
     await page.pdf({
       path: filePath,
       format: 'A4',
       printBackground: true,
+      displayHeaderFooter: true,
       margin: { top: '30mm', right: '18mm', bottom: '24mm', left: '18mm' },
       headerTemplate,
       footerTemplate,
     });
   } finally {
-    await browser.close();
+    await page.close();
   }
 
   // Return URL path (relative to /public)
