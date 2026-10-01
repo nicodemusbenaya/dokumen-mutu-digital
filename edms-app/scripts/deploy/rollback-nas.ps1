@@ -32,7 +32,7 @@ if (!(Test-Path -LiteralPath (Join-Path $backupPath 'server.js'))) {
 Write-Host "ROLLBACK dari: $backupPath"
 Write-Host "ROLLBACK ke   : $app"
 
-# Pulihkan semua file backup menimpa isi app (file baru yang tidak ada di backup dibiarkan — tidak berbahaya)
+# Pulihkan semua file backup menimpa isi app (file baru yang tidak ada di backup dibiarkan - tidak berbahaya)
 $null = robocopy $backupPath $app /E /R:2 /W:2 /NFL /NDL /NJH /NP
 if ($LASTEXITCODE -ge 8) { throw "robocopy rollback gagal (exit $LASTEXITCODE)" }
 

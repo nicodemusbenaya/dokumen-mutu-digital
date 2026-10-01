@@ -17,7 +17,7 @@ $standalone = Join-Path $appRoot '.next\standalone'
 $localNext  = Join-Path $appRoot '.next'
 $dst        = Join-Path $ShareRoot $SourceName
 
-# ── 1. Cek build ────────────────────────────────────────────────
+# -- 1. Cek build ------------------------------------------------
 if (!(Test-Path -LiteralPath (Join-Path $standalone 'server.js'))) {
   throw "Build standalone belum ada. Jalankan dulu: npm run build"
 }
@@ -25,14 +25,14 @@ if (!(Test-Path -LiteralPath $dst)) {
   throw "Folder tujuan tidak ditemukan: $dst"
 }
 
-# ── 2. Lengkapi payload (Next tidak selalu ikut menyalin static/public) ──
+# -- 2. Lengkapi payload (Next tidak selalu ikut menyalin static/public) --
 $payloadStatic = Join-Path $standalone '.next\static'
 if (!(Test-Path -LiteralPath $payloadStatic)) {
   Write-Host 'Menyiapkan .next/static ke payload...'
   $null = robocopy (Join-Path $localNext 'static') $payloadStatic /E /R:2 /W:2 /NFL /NDL /NJH /NP
   if ($LASTEXITCODE -ge 8) { throw "robocopy static gagal (exit $LASTEXITCODE)" }
 }
-# public: bangun ulang dari public lokal TANPA uploads — build ikut menyalin
+# public: bangun ulang dari public lokal TANPA uploads - build ikut menyalin
 # uploads lokal yang BUKAN data produksi; uploads hidup hanya ada di NAS.
 $payloadPublic = Join-Path $standalone 'public'
 if (Test-Path -LiteralPath $payloadPublic) {
@@ -45,13 +45,13 @@ if ($LASTEXITCODE -ge 8) { throw "robocopy public payload gagal (exit $LASTEXITC
 $localBuildId = (Get-Content -LiteralPath (Join-Path $payloadStatic '..\BUILD_ID') -Raw).Trim()
 Write-Host "Build lokal  : $localBuildId"
 
-# ── 3. Backup (default) ─────────────────────────────────────────
+# -- 3. Backup (default) -----------------------------------------
 if (-not $SkipBackup) {
   Write-Host '== Backup sebelum deploy =='
   & (Join-Path $PSScriptRoot 'backup-nas.ps1') -ShareRoot $ShareRoot -SourceName $SourceName
 }
 
-# ── 4. Sinkron payload terpilih -> NAS ──────────────────────────
+# -- 4. Sinkron payload terpilih -> NAS --------------------------
 # Hanya item runtime + sql migrasi. Sengaja TIDAK disalin: .env.local,
 # cookies.txt, storage (volume terpisah), zip arsip, log, .import-report.
 Write-Host '== Sinkron payload ke NAS =='
@@ -75,7 +75,7 @@ Sync-Item (Join-Path $standalone 'package.json')  $dst
 Sync-Item (Join-Path $appRoot 'sql')              (Join-Path $dst 'sql')
 Sync-Item (Join-Path $appRoot 'scripts')          (Join-Path $dst 'scripts')
 
-# ── 5. Verifikasi ───────────────────────────────────────────────
+# -- 5. Verifikasi -----------------------------------------------
 $remoteBuildId = (Get-Content -LiteralPath (Join-Path $dst '.next\BUILD_ID') -Raw).Trim()
 if ($remoteBuildId -ne $localBuildId) {
   throw "Verifikasi gagal: BUILD_ID NAS ($remoteBuildId) != lokal ($localBuildId)"
@@ -84,7 +84,7 @@ $remoteServer = Get-Item -LiteralPath (Join-Path $dst 'server.js')
 Write-Host "BUILD_ID NAS : $remoteBuildId"
 Write-Host "server.js NAS: $($remoteServer.LastWriteTime) ($([math]::Round($remoteServer.Length/1KB,1)) KB)"
 Write-Host ''
-Write-Host "DEPLOY_OK — file sudah tersinkron ke $dst"
+Write-Host "DEPLOY_OK - file sudah tersinkron ke $dst"
 Write-Host 'Langkah TERAKHIR: restart container edms-ups-app di Container Station'
 Write-Host '  (Applications/Compose -> edms-mutu-system -> container edms-ups-app -> Restart),'
 Write-Host '  atau via tab Containers -> klik kanan edms-ups-app -> Restart.'
