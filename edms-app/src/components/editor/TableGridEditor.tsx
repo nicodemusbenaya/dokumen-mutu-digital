@@ -328,38 +328,44 @@ export default function TableGridEditor({ content, onChange }: Props) {
               {headers ? (
                 <thead>
                   <tr style={{ borderBottom: '1.5px solid #cbd5e1' }}>
-                    {headers.map((h, hIdx) => (
-                      <th
-                        key={hIdx}
-                        colSpan={h.colSpan > 1 ? h.colSpan : undefined}
-                        rowSpan={h.rowSpan > 1 ? h.rowSpan : undefined}
-                        style={{
-                          padding: '10px 12px',
-                          borderRight: '1px solid #cbd5e1',
-                          textAlign: hIdx === 0 ? 'center' : 'left',
-                          width: hIdx === 0 ? '70px' : undefined,
-                          fontWeight: 600,
-                          letterSpacing: '0.02em',
-                          ...attrsToStyle(h.attrs),
-                        }}
-                      >
-                        <input
-                          type="text"
-                          value={cellToText(h.html)}
-                          onChange={e => handleHeaderChange(hIdx, e.target.value)}
+                    {headers.map((h, hIdx) =>
+                      h === null ? (
+                        // Slot pendamping colspan sel sebelumnya — tidak dirender
+                        // (sel aslinya sudah menutupi kolom ini via colSpan)
+                        <React.Fragment key={`hs${hIdx}`} />
+                      ) : (
+                        <th
+                          key={hIdx}
+                          colSpan={h.colSpan > 1 ? h.colSpan : undefined}
+                          rowSpan={h.rowSpan > 1 ? h.rowSpan : undefined}
                           style={{
-                            width: '100%',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'inherit',
-                            font: 'inherit',
-                            textAlign: 'inherit',
-                            padding: 0,
-                            outlineOffset: 2,
+                            padding: '10px 12px',
+                            borderRight: '1px solid #cbd5e1',
+                            textAlign: hIdx === 0 ? 'center' : 'left',
+                            width: hIdx === 0 ? '70px' : undefined,
+                            fontWeight: 600,
+                            letterSpacing: '0.02em',
+                            ...attrsToStyle(h.attrs),
                           }}
-                        />
-                      </th>
-                    ))}
+                        >
+                          <input
+                            type="text"
+                            value={cellToText(h.html)}
+                            onChange={e => handleHeaderChange(hIdx, e.target.value)}
+                            style={{
+                              width: '100%',
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'inherit',
+                              font: 'inherit',
+                              textAlign: 'inherit',
+                              padding: 0,
+                              outlineOffset: 2,
+                            }}
+                          />
+                        </th>
+                      )
+                    )}
                     <th style={{ width: '50px', textAlign: 'center', padding: '10px 6px' }}>Aksi</th>
                   </tr>
                 </thead>
