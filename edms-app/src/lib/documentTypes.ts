@@ -363,18 +363,101 @@ export function cleanSectionTitle(label: string): string {
   return label.replace(/^\d+\.\s*/, '').trim();
 }
 
+// Judul impor yang tidak bermakna: "Tabel 1", kosong, atau deretan titik-titik
+export function isJunkSectionTitle(title?: string | null): boolean {
+  const t = (title || '').trim();
+  if (!t) return true;
+  if (/^tabel\s*\d+$/i.test(t)) return true;
+  if (/(?:\.|…){4,}/.test(t)) return true;
+  return false;
+}
+
+function stripTagsToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|tr|td|th|h[1-6]|li)>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanDerivedTitle(raw: string): string {
+  let t = raw.replace(/\s+/g, ' ').trim();
+  // sisa placeholder tanda tangan/dots di dalam teks dibuang
+  t = t.replace(/(?:\.|…){4,}/g, ' ').replace(/\s+/g, ' ').trim();
+  t = t.replace(/^[.…\s:;\-–—,]+/, '').replace(/[.…\s:;\-–—,]+$/, '').trim();
+  if (!t) return '';
+  if (t.length > 100) {
+    t = t.slice(0, 100);
+    const sp = t.lastIndexOf(' ');
+    if (sp > 60) t = t.slice(0, sp);
+    t = t.trim() + '…';
+  }
+  return t;
+}
+
+function isUsableTitle(t: string): boolean {
+  return t.length >= 4 && !/^[^A-Za-z0-9]+$/.test(t);
+}
+
+// Derive judul seksi spesifik dari konten (untuk judul impor yang junk)
+export function deriveSectionTitleFromContent(html?: string | null): string {
+  if (!html) return '';
+
+  // A. tag <strong>/<b> sebelum tabel pertama (judul heading impor)
+  const pre = html.split(/<table[\s>]/i)[0] || '';
+  const strongs: string[] = [];
+  for (const m of pre.matchAll(/<(strong|b)>([\s\S]*?)<\/\1>/gi)) {
+    const t = cleanDerivedTitle(stripTagsToText(m[2]));
+    if (isUsableTitle(t)) strongs.push(t);
+    if (strongs.length === 2) break;
+  }
+  if (strongs.length) {
+    const joined = cleanDerivedTitle(strongs.join(' '));
+    if (isUsableTitle(joined)) return joined;
+  }
+
+  // B. sel terpanjang pada <tr> pertama tabel
+  const tr = /<tr[^>]*>([\s\S]*?)<\/tr>/i.exec(html);
+  if (tr) {
+    let best = '';
+    for (const m of tr[1].matchAll(/<(td|th)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi)) {
+      const t = cleanDerivedTitle(stripTagsToText(m[2]));
+      if (isUsableTitle(t) && t.length > best.length) best = t;
+    }
+    if (best) return best;
+  }
+
+  // C. paragraf pertama sebelum tabel
+  const p = /<(p|h[1-6])(?:\s[^>]*)?>([\s\S]*?)<\/\1>/i.exec(pre);
+  if (p) {
+    const t = cleanDerivedTitle(stripTagsToText(p[2]));
+    if (isUsableTitle(t)) return t;
+  }
+  return '';
+}
+
 // Menghasilkan daftar seksi terurut untuk suatu dokumen
 export function getOrderedSections(docType: string, sections?: Record<string, string>): DocumentSectionConfig[] {
   // 1. Cek apakah ada metadata _section_order yang tersimpan
   if (sections?._section_order) {
+    const secs = sections;
     try {
-      const parsed = JSON.parse(sections._section_order);
+      const parsed = JSON.parse(secs._section_order);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item: any) => ({
-          key: item.key,
-          title: cleanSectionTitle(item.title || getSectionLabel(item.key, docType)),
-          isCustom: item.isCustom ?? (item.key.startsWith('sec_') || item.key.startsWith('custom_')),
-        }));
+        return parsed.map((item: any) => {
+          let title = cleanSectionTitle(item.title || getSectionLabel(item.key, docType));
+          if (isJunkSectionTitle(title)) {
+            const derived = deriveSectionTitleFromContent(secs[item.key]);
+            if (derived) title = derived;
+          }
+          return {
+            key: item.key,
+            title,
+            isCustom: item.isCustom ?? (item.key.startsWith('sec_') || item.key.startsWith('custom_')),
+          };
+        });
       }
     } catch (e) {
       console.error('Error parsing _section_order:', e);
@@ -395,9 +478,14 @@ export function getOrderedSections(docType: string, sections?: Record<string, st
     const knownKeys = new Set(result.map(r => r.key));
     Object.keys(sections).forEach(k => {
       if (!knownKeys.has(k) && k !== 'riwayat_perubahan' && k !== '_section_order') {
+        let title = cleanSectionTitle(getSectionLabel(k, docType));
+        if (isJunkSectionTitle(title)) {
+          const derived = deriveSectionTitleFromContent(sections[k]);
+          if (derived) title = derived;
+        }
         result.push({
           key: k,
-          title: cleanSectionTitle(getSectionLabel(k, docType)),
+          title,
           isCustom: true,
         });
       }

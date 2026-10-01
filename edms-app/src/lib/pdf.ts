@@ -482,7 +482,6 @@ function buildPdfStyles(): string {
   .pengesahan-dotted-line { border-bottom: 1px dashed #94A3B8; margin: 0 10px 6px; }
   .pengesahan-name { font-size: 9pt; font-weight: 700; color: #0B192C; text-align: center; }
   .riwayat-page { page-break-after: always !important; break-after: always !important; padding: 20px 0; }
-  .riwayat-page-title { font-size: 11pt; font-weight: 800; color: #0B192C; text-align: center; letter-spacing: 0.06em; margin-bottom: 14px; text-transform: uppercase; }
   .toc-page { page-break-after: always !important; break-after: always !important; padding: 20px 0; }
   .toc-title-heading { font-size: 11pt; font-weight: 800; color: #0B192C; text-align: center; letter-spacing: 0.06em; margin-bottom: 20px; text-transform: uppercase; }
   .toc-list { width: 100%; }
@@ -531,9 +530,17 @@ function buildContentHtml(doc: PdfDocumentData): string {
     day: '2-digit', month: 'long', year: 'numeric'
   });
 
-  const refsHtml = doc.refs.map(r =>
-    `<li>[${r.kategori}] ${r.nomor} — ${r.judul}</li>`
-  ).join('');
+  // Master referensi kadang punya baris kembar (impor ganda) → tampil sekali saja
+  const seenRefs = new Set<string>();
+  const refsHtml = doc.refs
+    .filter(r => {
+      const k = `${r.kategori}|${r.nomor}|${r.judul}`.toLowerCase().replace(/\s+/g, ' ').trim();
+      if (seenRefs.has(k)) return false;
+      seenRefs.add(k);
+      return true;
+    })
+    .map(r => `<li>[${r.kategori}] ${r.nomor} — ${r.judul}</li>`)
+    .join('');
 
   const orderedSections = getOrderedSections(doc.jenis, doc.sections);
   const allActive = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
@@ -606,9 +613,10 @@ function buildContentHtml(doc: PdfDocumentData): string {
 
   // Dokumen impor yang sudah membawa RIWAYAT PERUBAHAN aslinya → pakai miliknya,
   // jangan ditimpa tabel sintesis (hanya berisi 1 baris hasil import).
+  // Judul "RIWAYAT PERUBAHAN" sudah dibawa oleh renderRevisionTableHtml —
+  // jangan ditambah heading sintetis lagi (dulu muncul dua kali).
   const riwayatHtml = importedRiwayat ? '' : `
     <div class="riwayat-page">
-      <div class="riwayat-page-title">RIWAYAT PERUBAHAN</div>
       ${revisionTableHtml}
     </div>`;
 

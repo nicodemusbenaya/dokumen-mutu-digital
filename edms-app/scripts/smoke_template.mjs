@@ -87,18 +87,22 @@ async function main() {
   check('login admin', login.status === 200, `base=${BASE} status=${login.status}`);
   if (login.status !== 200) return finish();
 
-  // Register default mengecualikan template (178 total - 148 template = 30)
+  // Register default mengecualikan template — hitung baseline dulu agar
+  // tidak bergantung pada jumlah absolut dokumen (bisa bertambah sewaktu-waktu)
   const list = await j(await call('/api/documents?limit=1'));
-  check('default exclude template (total=30)', list.total === 30, `total=${list.total}`);
+  const baseExcl = list.total;
+  check('register default punya dokumen', typeof baseExcl === 'number' && baseExcl > 0, `total=${baseExcl}`);
 
   const tplList = await j(await call('/api/documents?isTemplate=1&limit=100'));
+  const baseTpl = tplList.total;
+  check('isTemplate=1 punya template', typeof baseTpl === 'number' && baseTpl > 0, `total=${baseTpl}`);
   const tpl0 = (tplList.data || [])[0] || {};
-  check('isTemplate=1 total=148', tplList.total === 148, `total=${tplList.total}`);
   check('baris template ter-mapping', tpl0.isTemplate === true && typeof tpl0.sectionCount === 'number',
     `isTemplate=${tpl0.isTemplate} sectionCount=${tpl0.sectionCount}`);
 
   const all = await j(await call('/api/documents?limit=1&includeTemplates=1'));
-  check('includeTemplates total=178', all.total === 178, `total=${all.total}`);
+  check('includeTemplates = default + template',
+    all.total === baseExcl + baseTpl, `all=${all.total} excl=${baseExcl} tpl=${baseTpl}`);
 
   const qExcl = await j(await call('/api/documents?status=Menunggu+Approval&limit=100'));
   const qIncl = await j(await call('/api/documents?status=Menunggu+Approval&limit=100&includeTemplates=1'));
@@ -153,18 +157,21 @@ async function main() {
   if (doc.source_path) check('source_path ter-rewrite', doc.source_path.includes(`/uploads/media/${id1}/`), doc.source_path);
 
   const afterCreate = await j(await call('/api/documents?limit=1'));
-  check('dokumen hasil tidak menjadi template', afterCreate.total === 31, `total=${afterCreate.total}`);
+  check('dokumen hasil tidak menjadi template', afterCreate.total === baseExcl + 1,
+    `total=${afterCreate.total} base=${baseExcl}`);
 
   const flag = await call(`/api/documents/${id1}/template`, { method: 'POST' });
   check('POST flag template', flag.status === 200, `status=${flag.status}`);
   const exclAfterFlag = await j(await call('/api/documents?limit=1'));
-  check('setelah diflag keluar dari register', exclAfterFlag.total === 30, `total=${exclAfterFlag.total}`);
+  check('setelah diflag keluar dari register', exclAfterFlag.total === baseExcl,
+    `total=${exclAfterFlag.total} base=${baseExcl}`);
   const dFlagged = await j(await call(`/api/documents/${id1}`));
   check('detail menandai isTemplate', dFlagged.data?.isTemplate === true, '');
   const unflag = await call(`/api/documents/${id1}/template`, { method: 'DELETE' });
   check('DELETE unflag template', unflag.status === 200, `status=${unflag.status}`);
   const exclAfterUnflag = await j(await call('/api/documents?limit=1'));
-  check('setelah unflag kembali ke register', exclAfterUnflag.total === 31, `total=${exclAfterUnflag.total}`);
+  check('setelah unflag kembali ke register', exclAfterUnflag.total === baseExcl + 1,
+    `total=${exclAfterUnflag.total} base=${baseExcl}`);
 
   const create2 = await call('/api/documents/from-template', {
     method: 'POST',

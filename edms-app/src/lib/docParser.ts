@@ -513,15 +513,29 @@ function wmlTable(node: XNode, ctx: WmlCtx): string {
     ? 'border:none;padding:2px 5px;vertical-align:top;'
     : 'border:1px solid #000;padding:3px 6px;vertical-align:top;';
 
-  const openMerge = new Map<number, { count: number; row: number }>();
-  let rows = '';
+  // Dua pass: (1) kumpulkan sel + info merge per baris, (2) emit dengan
+  // rowspan yang benar. Dulu sel vMerge 'continue' dibuang tanpa memberi
+  // rowspan pada sel awalnya → kolom di baris bawahnya bergeser (kop surat
+  // berantakan, sel "Tanggal" jatuh ke kolom logo).
+  type MergeSpan = { startRow: number; endRow: number };
+  type CellDraft = {
+    gridIdx: number;
+    span: number;
+    vMerge: 'restart' | 'continue' | null;
+    style: string;
+    inner: string;
+    merge?: MergeSpan;
+  };
+
+  const activeMerges = new Map<number, MergeSpan>();
+  const parsedRows: CellDraft[][] = [];
   let rowIndex = -1;
 
   for (const tr of childrenOf(node).filter((c) => localName(c.tag) === 'tr')) {
     rowIndex++;
     let gridIdx = 0;
-    let cells = '';
-    const continued = new Set<number>();
+    const cells: CellDraft[] = [];
+    const continuedCols = new Set<number>();
 
     for (const tc of childrenOf(tr).filter((c) => localName(c.tag) === 'tc')) {
       const tcPr = findChild(tc, 'tcPr');
@@ -531,18 +545,7 @@ function wmlTable(node: XNode, ctx: WmlCtx): string {
       const vMergeNode = tcPr ? findChild(tcPr, 'vMerge') : null;
       const vMergeVal = vMergeNode ? (readAttr(vMergeNode, 'w:val') ?? 'continue') : null;
 
-      if (vMergeVal === 'continue') {
-        const open = openMerge.get(gridIdx);
-        if (open) { open.count += 1; continued.add(gridIdx); }
-        gridIdx += span;
-        continue;
-      }
-
-      const pending = openMerge.get(gridIdx);
-      const rowspan = pending ? pending.count + 1 : 1;
-      if (pending) openMerge.delete(gridIdx);
-
-      const style: string[] = [];
+      const style: string[] = [cellStyle];
       const jc = tcPr ? findChild(tcPr, 'jc') : null;
       const jv = jc ? readAttr(jc, 'w:val') : null;
       if (jv === 'center') style.push('text-align:center');
@@ -551,26 +554,65 @@ function wmlTable(node: XNode, ctx: WmlCtx): string {
       const fill = shd ? readAttr(shd, 'w:fill') : null;
       if (fill && fill !== 'auto' && fill !== 'nil') style.push(`background-color:#${fill}`);
 
-      const inner = wmlInline(tc, ctx, {});
-      const attrs = [
-        `style="${cellStyle}${style.join(';')}"`,
-        span > 1 ? `colspan="${span}"` : '',
-        rowspan > 1 ? `rowspan="${rowspan}"` : '',
-      ].filter(Boolean).join(' ');
+      if (vMergeVal === 'continue') {
+        const open = activeMerges.get(gridIdx);
+        if (open) {
+          open.endRow = rowIndex;
+          continuedCols.add(gridIdx);
+          cells.push({ gridIdx, span, vMerge: 'continue', style: '', inner: '', merge: open });
+        } else {
+          // lanjutan tanpa sel awal: sisipkan sel kosong agar kolom tetap sejajar
+          cells.push({ gridIdx, span, vMerge: null, style: style.join(';'), inner: '' });
+        }
+        gridIdx += span;
+        continue;
+      }
 
-      cells += `<td ${attrs}>${inner}</td>`;
-
-      if (vMergeVal === 'restart') openMerge.set(gridIdx, { count: 0, row: rowIndex });
+      const draft: CellDraft = {
+        gridIdx,
+        span,
+        vMerge: vMergeVal === 'restart' ? 'restart' : null,
+        style: style.join(';'),
+        inner: wmlInline(tc, ctx, {}),
+      };
+      if (draft.vMerge === 'restart') {
+        const merge: MergeSpan = { startRow: rowIndex, endRow: rowIndex };
+        activeMerges.set(gridIdx, merge);
+        draft.merge = merge;
+      }
+      cells.push(draft);
       gridIdx += span;
     }
 
-    // entri yang tidak dilanjutkan di baris ini sudah tidak berlaku
-    for (const key of [...openMerge.keys()]) {
-      const e = openMerge.get(key)!;
-      if (e.row < rowIndex && !continued.has(key)) openMerge.delete(key);
+    // merge lintas-baris yang tidak dilanjutkan di baris ini sudah berakhir;
+    // merge yang baru dibuka di baris ini (startRow == rowIndex) dibiarkan
+    // menunggu lanjutan di baris berikutnya
+    for (const [key, m] of [...activeMerges.entries()]) {
+      if (m.startRow < rowIndex && !continuedCols.has(key)) activeMerges.delete(key);
     }
 
-    if (cells) rows += `<tr>${cells}</tr>`;
+    parsedRows.push(cells);
+  }
+
+  let rows = '';
+  for (const cells of parsedRows) {
+    let html = '';
+    for (const cell of cells) {
+      if (cell.vMerge === 'continue') {
+        const rs = cell.merge ? cell.merge.endRow - cell.merge.startRow + 1 : 1;
+        if (rs > 1) continue; // sudah tercakup rowspan sel awalnya
+        html += `<td style="${cellStyle}"></td>`;
+        continue;
+      }
+      const attrs = [`style="${cell.style}"`];
+      if (cell.span > 1) attrs.push(`colspan="${cell.span}"`);
+      if (cell.vMerge === 'restart' && cell.merge) {
+        const rs = cell.merge.endRow - cell.merge.startRow + 1;
+        if (rs > 1) attrs.push(`rowspan="${rs}"`);
+      }
+      html += `<td ${attrs.join(' ')}>${cell.inner}</td>`;
+    }
+    if (html) rows += `<tr>${html}</tr>`;
   }
 
   if (!rows) return '';

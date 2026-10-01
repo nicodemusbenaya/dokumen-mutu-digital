@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Output kompilasi parser untuk skrip import (dibangun ulang on-demand):
+    "scripts/.parser-build/**",
+    // Skrip audit/pengujian sementara:
+    "_tmp_*",
   ]),
 ]);
 
