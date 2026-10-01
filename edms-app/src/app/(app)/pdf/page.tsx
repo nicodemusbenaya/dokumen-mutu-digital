@@ -7,14 +7,11 @@ import type { Document, DocumentDetail } from '@/types';
 import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel } from '@/lib/documentTypes';
 import { injectSignaturesIntoFormHtml } from '@/lib/pdf-utils';
 import { getRevisionHistory, RevisionRow } from '@/lib/revisionUtils';
+import { findCycleApproval } from '@/lib/approvalCycle';
 import { IconEditor, IconDownload, IconSearch } from '@/components/icons/Icons';
 import Image from 'next/image';
 
 const FORMULIR_TYPES = new Set([
-  'Formulir Standar (FR.01.04)',
-  'Berita Acara Pemusnahan (FR.01.05)',
-  'Pernyataan Kerahasiaan (FR.01.06)',
-  'Daftar Rekaman Mutu (FR.01.07)',
   'BA Pemusnahan Rekaman',
   'Pernyataan Kerahasiaan',
   'Daftar Rekaman Mutu',
@@ -119,7 +116,7 @@ export default function PdfPreviewPage() {
   useEffect(() => {
     async function loadDocs() {
       try {
-        const res = await fetch('/api/documents?limit=100');
+        const res = await fetch('/api/documents?limit=100&includeTemplates=1');
         if (res.ok) {
           const json = await res.json();
           const list = json.data || [];
@@ -178,10 +175,11 @@ export default function PdfPreviewPage() {
     }
   }
 
-  // Get approval signature details
-  const mutuAppr = doc?.approvals?.find(a => a.stage === 1 && a.action === 'Approve');
-  const mgrAppr = doc?.approvals?.find(a => a.stage === 2 && a.action === 'Approve');
-  const pimpAppr = doc?.approvals?.find(a => a.stage === 3 && a.action === 'Approve');
+  // Get approval signature details (hanya siklus berjalan — abaikan approval
+  // sintetis hasil import & siklus revisi lama)
+  const mutuAppr = findCycleApproval(doc?.approvals ?? [], 1, doc?.status ?? 'Draft');
+  const mgrAppr  = findCycleApproval(doc?.approvals ?? [], 2, doc?.status ?? 'Draft');
+  const pimpAppr = findCycleApproval(doc?.approvals ?? [], 3, doc?.status ?? 'Draft');
 
   // Filtered documents based on search
   const filteredDocs = docs.filter(d => {
@@ -560,13 +558,17 @@ export default function PdfPreviewPage() {
                       const activeSections = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
                       return activeSections
                         .map((sec, idx) => {
-                          const label = getDisplaySectionLabel(sec, idx, doc.jenis);
-                          return (
-                            <div key={sec.key} className="doc-section" style={{ marginBottom: 16 }}>
-                              <h4>{label.toUpperCase()}</h4>
-                              <div dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData) }} />
-                            </div>
-                          );
+                            const label = getDisplaySectionLabel(sec, idx, doc.jenis);
+                            return (
+                              <div key={sec.key} className="doc-section clause-section" style={{ marginBottom: 16 }}>
+                                <div className="clause-label">{label}</div>
+                                <div className="clause-colon">:</div>
+                                <div
+                                  className="clause-content"
+                                  dangerouslySetInnerHTML={{ __html: injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData) }}
+                                />
+                              </div>
+                            );
                         });
                     })()}
 

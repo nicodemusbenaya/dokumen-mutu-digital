@@ -3,17 +3,16 @@
 // ─────────────────────────────────────────────────────────────────
 
 export type DocumentStatus = 'Draft' | 'Review' | 'Menunggu Approval' | 'Aktif' | 'Obsolete';
-export type DocumentJenis  = 
-  | 'SOP/Prosedur' 
-  | 'Manual Mutu' 
-  | 'Instruksi Kerja' 
-  | 'Formulir Standar (FR.01.04)'
-  | 'Berita Acara Pemusnahan (FR.01.05)'
-  | 'Pernyataan Kerahasiaan (FR.01.06)'
-  | 'Daftar Rekaman Mutu (FR.01.07)'
-  | 'Formulir Kerja' 
+// Nilai HARUS identik dengan ENUM `documents.jenis` di sql/001_schema.sql
+export type DocumentJenis  =
+  | 'SOP/Prosedur'
+  | 'Manual Mutu'
+  | 'Instruksi Kerja'
+  | 'Formulir Kerja'
   | 'Formulir Tambahan'
-  | 'BA Pemusnahan Rekaman';
+  | 'BA Pemusnahan Rekaman'
+  | 'Pernyataan Kerahasiaan'
+  | 'Daftar Rekaman Mutu';
 export type RefKategori    = 'Regulasi' | 'Standar' | 'Internal';
 export type ApprovalStage  = 1 | 2 | 3; // 1=Tim Mutu, 2=Manager, 3=Pimpinan
 
@@ -44,6 +43,9 @@ export interface Document {
   ackDone:        number;
   createdAt:      string;
   updatedAt:      string;
+  isTemplate?:    boolean; // hasil mapping API (d.is_template)
+  templateSourceId?: number | null;
+  sectionCount?:  number;  // hanya pada list API (subquery jumlah seksi)
 }
 
 export interface DocumentDetail extends Document {
@@ -51,6 +53,17 @@ export interface DocumentDetail extends Document {
   refs:      Reference[];
   approvals: Approval[];
   versions:  DocumentVersion[];
+}
+
+// Baris ringkas template untuk picker/form (dari GET /api/documents?isTemplate=1)
+export interface TemplateRow {
+  id:           number;
+  kode:         string;
+  judul:        string;
+  jenis:        string;
+  bidang:       string;
+  status?:      string;
+  sectionCount?: number;
 }
 
 export interface DocumentSection {

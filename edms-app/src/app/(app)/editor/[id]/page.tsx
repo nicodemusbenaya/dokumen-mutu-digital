@@ -18,6 +18,8 @@ import {
   getDisplaySectionLabel,
   cleanSectionTitle,
 } from '@/lib/documentTypes';
+import { findCycleApproval } from '@/lib/approvalCycle';
+import type { Approval } from '@/types';
 
 import {
   IconArrowLeft,
@@ -30,7 +32,7 @@ import {
 } from '@/components/icons/Icons';
 
 import { getSnippetsForSection, ClauseSnippet } from '@/lib/documentSnippets';
-import { getRevisionHistory, RevisionRow } from '@/lib/revisionUtils';
+import { getRevisionHistory, RevisionRow, bumpMajorVersion } from '@/lib/revisionUtils';
 import RevisionHistoryEditor from '@/components/editor/RevisionHistoryEditor';
 import '@/components/editor/editor.css';
 
@@ -101,6 +103,11 @@ export default function EditorPage() {
     sectionCount: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Berkas sumber hasil impor (.docx/.pdf/.xlsx/…)
+  const sourceFileRef = useRef<HTMLInputElement>(null);
+  const [sourceUploading, setSourceUploading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
 
   async function handleFileImport(file: File) {
     setImportLoading(true);
@@ -199,6 +206,18 @@ export default function EditorPage() {
     );
   }, [doc, header, sections]);
 
+  // Versi stempel untuk baris Riwayat Perubahan yang baru dibuat/dideteksi:
+  // - Siklus 1 (belum pernah terbit): currentVersion (1.0)
+  // - Pernah terbit & sedang direvisi (status != Aktif): versi berikutnya (2.0, 3.0, ...)
+  // - Saat Aktif: currentVersion
+  const revisionStampVersion = useMemo(() => {
+    const cur = doc?.currentVersion || '1.0';
+    const approvals: { stage: number; action: string }[] = Array.isArray(doc?.approvals) ? doc.approvals : [];
+    const published = approvals.some(a => a.stage === 3 && a.action === 'Approve');
+    if (published && doc?.status && doc.status !== 'Aktif') return bumpMajorVersion(cur);
+    return cur;
+  }, [doc]);
+
   // Hitung kelengkapan klausul dokumen
   const filledCount = useMemo(() => {
     return currentSections.filter(s => {
@@ -210,6 +229,48 @@ export default function EditorPage() {
   const completionPercent = currentSections.length > 0
     ? Math.round((filledCount / currentSections.length) * 100)
     : 0;
+
+  // Berkas sumber impor: 'docx'/'pdf' bisa diedit sebagai teks, sisanya tidak.
+  const sourceInfo = (() => {
+    const ext = String(doc?.source_ext || '').toLowerCase();
+    if (!doc?.source_path || !ext) return null;
+    const kind: 'supported' | 'sheet' | 'unsupported' =
+      ext === 'docx' || ext === 'pdf' ? 'supported'
+        : ext === 'xlsx' || ext === 'xls' || ext === 'csv' ? 'sheet'
+          : 'unsupported';
+    return {
+      ext,
+      kind,
+      name: String(doc.source_name || `source.${ext}`),
+      empty: orderedSections.length === 0 || currentSections.every(s => !(sections[s.key] || '').trim()),
+    };
+  })();
+
+  function downloadSource() {
+    window.open(`/api/documents/${docId}/source`, '_blank', 'noopener');
+  }
+
+  async function replaceSource(file: File) {
+    if (!docId) return;
+    setSourceUploading(true);
+    setSourceError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`/api/documents/${docId}/source`, { method: 'PUT', body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.error) throw new Error(json.error || 'Gagal mengunggah berkas sumber.');
+      notify('Berkas sumber berhasil diganti.', 'ok');
+      await fetchDoc();
+    } catch (err) {
+      const m = err instanceof Error && err.message ? err.message : 'Gagal mengunggah berkas sumber.';
+      setSourceError(m);
+      notify(m, 'err');
+    } finally {
+      setSourceUploading(false);
+      if (sourceFileRef.current) sourceFileRef.current.value = '';
+    }
+  }
 
   useEffect(() => {
     if (activeSection === 'riwayat_perubahan') return;
@@ -622,8 +683,9 @@ export default function EditorPage() {
       year: 'numeric'
     });
 
-    const mgrAppr = doc?.approvals?.find((a: any) => a.stage === 2 && a.action === 'Approve');
-    const pimpAppr = doc?.approvals?.find((a: any) => a.stage === 3 && a.action === 'Approve');
+    const editorApprovals: Approval[] = Array.isArray(doc?.approvals) ? doc.approvals : [];
+    const mgrAppr = findCycleApproval(editorApprovals, 2, doc?.status ?? 'Draft');
+    const pimpAppr = findCycleApproval(editorApprovals, 3, doc?.status ?? 'Draft');
 
     if (isFormulir) {
       return (
@@ -876,14 +938,10 @@ export default function EditorPage() {
           const content = sections[sec.key];
           if (!content || !content.trim()) return null;
           return (
-            <div key={sec.key} style={{ marginBottom: 12 }}>
-              <h3 style={{ fontSize: 11, fontWeight: 700, color: '#0b192c', margin: '8px 0 4px', borderBottom: '1px solid #cbd5e1', paddingBottom: 2 }}>
-                {sec.label}
-              </h3>
-              <div
-                style={{ fontSize: 10, lineHeight: 1.6 }}
-                dangerouslySetInnerHTML={{ __html: content }}
-              />
+            <div key={sec.key} className="clause-section" style={{ marginBottom: 12 }}>
+              <div className="clause-label">{sec.label}</div>
+              <div className="clause-colon">:</div>
+              <div className="clause-content" dangerouslySetInnerHTML={{ __html: content }} />
             </div>
           );
         })}
@@ -1308,6 +1366,69 @@ export default function EditorPage() {
                 </button>
               </div>
 
+              {/* Berkas Sumber Hasil Impor */}
+              {sourceInfo && (
+                <div className="card card-body" style={{ padding: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>
+                    📎 Berkas Sumber
+                  </div>
+                  <div style={{ fontSize: 12, wordBreak: 'break-word', color: 'var(--ink)' }}>
+                    {sourceInfo.name}
+                  </div>
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', padding: '2px 7px',
+                      borderRadius: 4, textTransform: 'uppercase',
+                      background: sourceInfo.kind === 'supported' ? '#dcfce7' : sourceInfo.kind === 'sheet' ? '#fef3c7' : '#fee2e2',
+                      color: sourceInfo.kind === 'supported' ? '#166534' : sourceInfo.kind === 'sheet' ? '#92400e' : '#991b1b',
+                    }}>
+                      .{sourceInfo.ext}
+                    </span>
+                    <span style={{ fontSize: 10.5, color: 'var(--ink-muted)' }}>
+                      {sourceInfo.kind === 'supported' ? 'Dikonversi ke seksi teks'
+                        : sourceInfo.kind === 'sheet' ? 'Spreadsheet — tidak dikonversi'
+                          : 'Format tidak didukung editor'}
+                    </span>
+                  </div>
+
+                  {sourceInfo.kind !== 'supported' && (
+                    <p style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '7px 9px', marginTop: 9, lineHeight: 1.5 }}>
+                      Isi berkas ini tidak dapat ditampilkan sebagai teks. Unduh untuk melihat/mengubah, atau ganti dengan berkas .docx/.pdf agar masuk ke editor.
+                    </p>
+                  )}
+
+                  <input
+                    ref={sourceFileRef}
+                    type="file"
+                    accept=".docx,.pdf,.xlsx,.xls,.csv,.doc,.rtf,.odt"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) replaceSource(f);
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+                    <button type="button" className="btn btn-outline btn-xs" style={{ flex: 1, justifyContent: 'center', fontSize: 11 }} onClick={downloadSource}>
+                      Unduh
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}
+                      disabled={sourceUploading}
+                      onClick={() => sourceFileRef.current?.click()}
+                    >
+                      {sourceUploading ? 'Mengunggah…' : 'Ganti File'}
+                    </button>
+                  </div>
+
+                  {sourceError && (
+                    <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 7 }}>{sourceError}</div>
+                  )}
+                </div>
+              )}
+
               {/* Document metadata card */}
               <div className="card card-body" style={{ padding: 14 }}>
                 <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 12 }}>Informasi Dokumen</div>
@@ -1395,7 +1516,29 @@ export default function EditorPage() {
 
             {/* Right: Active Section Editor + Optional Split Preview */}
             <div className={isSplitPreview ? 'editor-split-container' : ''}>
-              
+
+              {/* Panel khusus berkas yang tidak bisa dikonversi ke teks */}
+              {sourceInfo && sourceInfo.kind !== 'supported' && (
+                <div style={{
+                  border: '1px solid ' + (sourceInfo.kind === 'sheet' ? '#fcd34d' : '#fca5a5'),
+                  background: sourceInfo.kind === 'sheet' ? '#fffbeb' : '#fef2f2',
+                  borderRadius: 10, padding: '14px 16px', marginBottom: 16,
+                }}>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, color: sourceInfo.kind === 'sheet' ? '#92400e' : '#991b1b' }}>
+                    {sourceInfo.kind === 'sheet'
+                      ? 'Dokumen Spreadsheet — Tidak Dikonversi ke Teks'
+                      : 'Format Berkas Tidak Didukung Editor'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#78350f', marginTop: 6, lineHeight: 1.6 }}>
+                    Berkas <strong>{sourceInfo.name}</strong> disimpan apa adanya sebagai dokumen.
+                    {sourceInfo.kind === 'sheet'
+                      ? ' Isi lembar kerja tidak dipindahkan ke seksi teks, sehingga tidak dapat disunting di editor ini.'
+                      : ' Isi berkas biner ini tidak dapat diekstrak oleh parser.'}
+                    {' '}Gunakan tombol <strong>Unduh</strong> / <strong>Ganti File</strong> pada panel &quot;Berkas Sumber&quot;, atau tambahkan seksi klausul baru untuk menyusun dokumen secara manual.
+                  </div>
+                </div>
+              )}
+
               {/* Section Editor Card */}
               <div>
                 {/* Riwayat Perubahan Interactive Editor */}
@@ -1409,7 +1552,7 @@ export default function EditorPage() {
                       oldSections={initialSectionsRef.current}
                       newSections={sections}
                       sectionLabels={sectionLabelsMap}
-                      currentVersion={doc?.currentVersion || '1.0'}
+                      currentVersion={revisionStampVersion}
                       docStatus={doc?.status || 'Draft'}
                     />
                   </div>
@@ -1458,8 +1601,6 @@ export default function EditorPage() {
                       <div style={{ minHeight: 420 }}>
                         <TableGridEditor
                           key={`${docId || 'new'}-${sec.key}`}
-                          sectionKey={sec.key}
-                          sectionLabel={sec.label}
                           content={sections[sec.key] || ''}
                           onChange={html => updateSection(sec.key, html)}
                         />

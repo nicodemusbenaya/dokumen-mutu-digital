@@ -10,6 +10,7 @@ import {
   IconDashboard,
   IconDocuments,
   IconEditor,
+  IconTemplate,
   IconApproval,
   IconPdf,
   IconPeta,
@@ -30,6 +31,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',  icon: IconDashboard,  label: 'Dashboard' },
   { href: '/documents',  icon: IconDocuments,  label: 'Daftar Dokumen' },
+  { href: '/templates',  icon: IconTemplate,   label: 'Template Dokumen', perm: 'document:create' },
   { href: '/editor',     icon: IconEditor,     label: 'Editor Dokumen' },
   { href: '/approval',   icon: IconApproval,   label: 'Approval Mutu', badgeKey: 'approval', roles: ['Tim Mutu', 'Manager Bidang', 'Pimpinan Unit', 'Admin Sistem'] },
   { href: '/pdf',        icon: IconPdf,        label: 'Lihat & Cetak PDF' },
@@ -50,7 +52,7 @@ export default function Sidebar({ user }: { user: SessionUser }) {
   useEffect(() => {
     async function loadStats() {
       try {
-        const res = await fetch('/api/documents?limit=100');
+        const res = await fetch('/api/documents?limit=100&includeTemplates=1');
         if (res.ok) {
           const json = await res.json();
           const pending = (json.data || []).filter(

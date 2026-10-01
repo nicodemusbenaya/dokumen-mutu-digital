@@ -78,7 +78,8 @@ Layanan ini **100% gratis** dari Cloudflare Zero Trust:
 2. Klik menu **Applications** (atau *Aplikasi*) di bilah kiri.
 3. Klik tombol **Create** (Buat).
 4. Beri nama aplikasi: `edms-mutu-system`.
-5. Di kolom teks YAML (Docker Compose), masukkan konfigurasi berikut:
+5. **Buat dulu folder storage persisten** via *File Station*: buat folder `/share/Container/edms-data` (folder ini menampung PDF, lampiran, dan tanda tangan — tidak ikut hilang saat update aplikasi).
+6. Di kolom teks YAML (Docker Compose), masukkan konfigurasi berikut:
 
 ```yaml
 version: '3.8'
@@ -105,8 +106,9 @@ services:
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
     volumes:
       - /share/Container/edms-app:/app
-      # Storage fisik NAS untuk PDF, lampiran, dan tanda tangan (Sesuai Bab 9.5 Spesifikasi)
-      - /share/Container/edms-app/storage:/app/storage
+      # Storage fisik NAS terpisah untuk PDF, lampiran, dan tanda tangan (Sesuai Bab 9.5 Spesifikasi)
+      # Folder terpisah agar file tidak hilang saat update aplikasi (rsync/git pull di /app)
+      - /share/Container/edms-data:/app/storage
     command: sh -c "node server.js"
 
   # Layanan Cloudflare Tunnel
@@ -120,8 +122,10 @@ services:
 ```
 *(Ganti `MASUKKAN_TOKEN_CLOUDFLARE_DISINI` dengan token yang Anda dapatkan di langkah 4).*
 
-6. Klik **Validate YAML**, lalu klik **Create**.
-7. Container Station akan otomatis mengunduh image dan menjalankan aplikasi.
+7. Klik **Validate YAML**, lalu klik **Create**.
+8. Container Station akan otomatis mengunduh image dan menjalankan aplikasi.
+
+> **Catatan migrasi (pertama kali):** file TTD/PDF lama yang tersimpan di `public/uploads` dipindahkan ke `storage/` dengan menjalankan `node scripts/migrate_uploads_to_storage.mjs` lalu menyalin hasilnya ke `/share/Container/edms-data/` (atau biarkan fallback path `public/uploads` tetap melayani file lama).
 
 ---
 

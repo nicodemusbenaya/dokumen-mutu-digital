@@ -13,7 +13,7 @@ export default function EditorIndexPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/documents?limit=50');
+        const res = await fetch('/api/documents?limit=50&includeTemplates=1');
         if (res.ok) {
           const json = await res.json();
           setDocs(json.data || []);

@@ -4,10 +4,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import SignaturePad from 'signature_pad';
-import type { DocumentDetail, Approval } from '@/types';
-import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel } from '@/lib/documentTypes';
-import { canApprove } from '@/lib/rbac';
-import { IconArrowLeft, IconEditor, IconApproval, IconPdf, IconCheck, IconLock } from '@/components/icons/Icons';
+import type { DocumentDetail, Approval, TemplateRow } from '@/types';
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel, isFormulirType } from '@/lib/documentTypes';
+import { canApprove, hasPermission } from '@/lib/rbac';
+import { getApprovalCycle } from '@/lib/approvalCycle';
+import TemplateForm from '@/components/template/TemplateForm';
+import { IconArrowLeft, IconEditor, IconApproval, IconPdf, IconCheck, IconLock, IconRefresh, IconTemplate, IconPlus } from '@/components/icons/Icons';
 
 const STATUS_CLASS: Record<string, string> = {
   'Draft':'draft','Review':'review','Menunggu Approval':'approval','Aktif':'aktif','Obsolete':'obsolete',
@@ -32,6 +34,9 @@ export default function DocumentDetailPage() {
   const [approvalNote,  setApprovalNote]  = useState('');
   const [approving,     setApproving]     = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+
+  // Dialog "Buat Dokumen dari Template Ini"
+  const [formTemplate, setFormTemplate] = useState<TemplateRow | null>(null);
 
   // Signature pad
   const sigCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -80,6 +85,35 @@ export default function DocumentDetailPage() {
       fetchDoc();
     } else {
       notify(json.error, 'err');
+    }
+  }
+
+  async function handleRevise() {
+    if (!confirm('Buka siklus revisi? Dokumen akan kembali ke status Draft untuk diedit dan perlu di-approve ulang sebelum Aktif kembali.')) return;
+    const res = await fetch(`/api/documents/${docId}/revise`, { method: 'POST' });
+    const json = await res.json();
+    if (res.ok) {
+      notify(json.message);
+      fetchDoc();
+    } else {
+      notify(json.error || 'Gagal membuka siklus revisi.', 'err');
+    }
+  }
+
+  async function handleMarkTemplate(mark: boolean) {
+    const msg = mark
+      ? 'Tandai dokumen ini sebagai template? Dokumen berpindah ke pustaka Template dan tidak tampil di Daftar Dokumen (bisa dibatalkan kapan saja).'
+      : 'Hapus dari tanda template? Dokumen kembali tampil di Daftar Dokumen. Dokumen TIDAK dihapus.';
+    if (!confirm(msg)) return;
+    const res = await fetch(`/api/documents/${docId}/template`, {
+      method: mark ? 'POST' : 'DELETE',
+    });
+    const json = await res.json();
+    if (res.ok) {
+      notify(json.message);
+      fetchDoc();
+    } else {
+      notify(json.error || 'Gagal memperbarui tanda template.', 'err');
     }
   }
 
@@ -141,9 +175,12 @@ export default function DocumentDetailPage() {
 
   if (!doc) return <div className="card card-body" style={{textAlign:'center',padding:60}}>Dokumen tidak ditemukan.</div>;
 
-  const reviewApproval     = doc.approvals.find((a: Approval) => a.stage === 1 && a.action === 'Approve');
-  const mgrApproval        = doc.approvals.find((a: Approval) => a.stage === 2 && a.action === 'Approve');
-  const pimpinanApproval   = doc.approvals.find((a: Approval) => a.stage === 3 && a.action === 'Approve');
+  // Hanya approval pada siklus berjalan yang dihitung — approval sintetis hasil
+  // import (stage 2 & 3) dan siklus revisi lama tidak boleh menutup tahap saat ini.
+  const cycleApprovals   = getApprovalCycle(doc.approvals, doc.status);
+  const reviewApproval   = cycleApprovals.find((a: Approval) => a.stage === 1 && a.action === 'Approve');
+  const mgrApproval      = cycleApprovals.find((a: Approval) => a.stage === 2 && a.action === 'Approve');
+  const pimpinanApproval = cycleApprovals.find((a: Approval) => a.stage === 3 && a.action === 'Approve');
 
   // Tentukan stage approval yang sedang aktif
   let activeStage: 1 | 2 | 3 | null = null;
@@ -173,6 +210,18 @@ export default function DocumentDetailPage() {
       (currentUser.role === 'Penyusun Dokumen' && (!docPenyusunId || docPenyusunId === currentUser.id))
     )
   );
+  const userCanRevise = Boolean(
+    currentUser &&
+    doc.status === 'Aktif' &&
+    (
+      currentUser.role === 'Admin Sistem' ||
+      (currentUser.role === 'Penyusun Dokumen' && (!docPenyusunId || docPenyusunId === currentUser.id))
+    )
+  );
+
+  // Hak kelola template (Penyusun Dokumen & Admin Sistem — Cabang #6)
+  const canManageTemplate  = Boolean(currentUser && hasPermission(currentUser.role, 'template:set'));
+  const canCreateFromTpl   = Boolean(currentUser && hasPermission(currentUser.role, 'document:create'));
 
   return (
     <>
@@ -198,6 +247,11 @@ export default function DocumentDetailPage() {
               {doc.kode}
             </code>
             <span className={`badge badge-${STATUS_CLASS[doc.status] ?? 'draft'}`}>{doc.status}</span>
+            {doc.isTemplate && (
+              <span className="badge" style={{ background: '#EDE9FE', color: '#6D28D9', border: '1px solid #DDD6FE' }}>
+                Template
+              </span>
+            )}
             <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
               v{doc.currentVersion || (doc as any).current_version} · {doc.jenis} · {doc.bidang}
             </span>
@@ -232,6 +286,37 @@ export default function DocumentDetailPage() {
             <IconPdf size={14} />
             <span>{generatingPdf ? 'Generating...' : 'Generate PDF'}</span>
           </button>
+          {userCanRevise && (
+            <button className="btn btn-outline btn-sm" onClick={handleRevise}>
+              <IconRefresh size={14} />
+              <span>Ajukan Revisi</span>
+            </button>
+          )}
+          {canCreateFromTpl && doc.isTemplate && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setFormTemplate({
+                id: doc.id, kode: doc.kode, judul: doc.judul,
+                jenis: doc.jenis, bidang: doc.bidang, status: doc.status,
+              })}
+            >
+              <IconPlus size={14} />
+              <span>Buat Dokumen dari Template Ini</span>
+            </button>
+          )}
+          {canManageTemplate && (
+            doc.isTemplate ? (
+              <button className="btn btn-ghost btn-sm" onClick={() => handleMarkTemplate(false)}>
+                <IconTemplate size={14} />
+                <span>Hapus dari Tanda Template</span>
+              </button>
+            ) : (
+              <button className="btn btn-outline btn-sm" onClick={() => handleMarkTemplate(true)}>
+                <IconTemplate size={14} />
+                <span>Jadikan Template</span>
+              </button>
+            )
+          )}
         </div>
       </div>
 
@@ -263,18 +348,38 @@ export default function DocumentDetailPage() {
               return <div style={{textAlign:'center',color:'var(--ink-muted)',padding:40}}>Belum ada isi bagian dokumen</div>;
             }
 
+            const formOnly = isFormulirType(doc.jenis);
+
             return orderedSections.map((sec, idx) => {
               const label = getDisplaySectionLabel(sec, idx, doc.jenis);
-              return (
-                <div key={sec.key} style={{marginBottom:22}}>
-                  <div style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:15,color:'var(--navy)',marginBottom:8,paddingBottom:6,borderBottom:'2px solid var(--paper-line)'}}>
-                    {label}
+              const sectionContent = doc.sections?.[sec.key];
+
+              if (formOnly) {
+                return (
+                  <div key={sec.key} style={{marginBottom:22}}>
+                    <div style={{fontFamily:'var(--serif)',fontWeight:700,fontSize:15,color:'var(--navy)',marginBottom:8,paddingBottom:6,borderBottom:'2px solid var(--paper-line)'}}>
+                      {label}
+                    </div>
+                    {sectionContent ? (
+                      <div className="doc-read-content" dangerouslySetInnerHTML={{__html: sectionContent}} style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}} />
+                    ) : (
+                      <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>— Belum diisi —</div>
+                    )}
                   </div>
-                  {doc.sections?.[sec.key] ? (
-                    <div dangerouslySetInnerHTML={{__html: doc.sections[sec.key]}} style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}} />
-                  ) : (
-                    <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>— Belum diisi —</div>
-                  )}
+                );
+              }
+
+              return (
+                <div key={sec.key} className="clause-section" style={{marginBottom:22}}>
+                  <div className="clause-label">{label}</div>
+                  <div className="clause-colon">:</div>
+                  <div className="clause-content" style={{fontSize:13.5,lineHeight:1.8,color:'var(--ink)'}}>
+                    {sectionContent ? (
+                      <div className="doc-read-content" dangerouslySetInnerHTML={{__html: sectionContent}} />
+                    ) : (
+                      <div style={{color:'var(--ink-muted)',fontStyle:'italic',fontSize:13}}>— Belum diisi —</div>
+                    )}
+                  </div>
                 </div>
               );
             });
@@ -440,6 +545,11 @@ export default function DocumentDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Buat dokumen baru dari template ini */}
+      {formTemplate && (
+        <TemplateForm template={formTemplate} onClose={() => setFormTemplate(null)} />
       )}
     </>
   );

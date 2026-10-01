@@ -750,7 +750,7 @@ td {
   font-size: 12.5px;
 }
 
-th {
+.table-wrap th {
   background: #F8FAFC;
   color: var(--ink-soft);
   font-size: 10.5px;
@@ -765,7 +765,7 @@ td {
   color: var(--ink);
 }
 
-tr:last-child td {
+.table-wrap tr:last-child td {
   border-bottom: none;
 }
 
@@ -1544,9 +1544,97 @@ tr:last-child td {
   letter-spacing: 0.02em;
 }
 
+/* ── Format Klausul Gantung (seperti template resmi): label 4,5cm, titik dua sejajar, isi rata kiri-kanan ── */
+.clause-section {
+  display: grid;
+  grid-template-columns: 4.5cm auto 1fr;
+  column-gap: 8px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.clause-label {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: #0B192C;
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+}
+
+.clause-colon {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: #0B192C;
+}
+
+.clause-content {
+  min-width: 0;
+  text-align: justify;
+}
+
+.pdf-body .clause-label,
+.pdf-body .clause-colon,
+.pdf-body .clause-content {
+  font-size: 13px;
+}
+
+.a4-sheet .clause-label,
+.a4-sheet .clause-colon {
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.a4-sheet .clause-content {
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+/* ── Penomoran Bertingkat (1, 1.1, 1.1.1) untuk daftar terurut di isi dokumen ── */
+.pdf-body ol,
+.doc-read-content ol,
+.clause-content ol,
+.a4-sheet ol {
+  counter-reset: item;
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 10px;
+  text-align: justify;
+}
+
+.pdf-body ol > li,
+.doc-read-content ol > li,
+.clause-content ol > li,
+.a4-sheet ol > li {
+  counter-increment: item;
+  position: relative;
+  padding-left: 2.5em;
+  margin-bottom: 6px;
+  text-align: justify;
+}
+
+.pdf-body ol > li::before,
+.doc-read-content ol > li::before,
+.clause-content ol > li::before,
+.a4-sheet ol > li::before {
+  content: counters(item, ".") ". ";
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.pdf-body ul,
+.doc-read-content ul,
+.clause-content ul,
+.a4-sheet ul {
+  padding-left: 20px;
+  margin-bottom: 10px;
+  text-align: justify;
+}
+
 /* ── Styling Tabel Dokumen Mutu Terkendali (PDF, Web Preview & Editor) ── */
 .pdf-body table,
 .doc-body table,
+.doc-read-content table,
 .tiptap table {
   width: 100% !important;
   border-collapse: collapse !important;
@@ -1560,6 +1648,9 @@ tr:last-child td {
 .doc-body table,
 .doc-body th,
 .doc-body td,
+.doc-read-content table,
+.doc-read-content th,
+.doc-read-content td,
 .tiptap table,
 .tiptap th,
 .tiptap td {
@@ -1568,11 +1659,11 @@ tr:last-child td {
 
 .pdf-body th,
 .doc-body th,
+.doc-read-content th,
 .tiptap th {
-  background-color: #F1F5F9 !important;
   color: #0F172A !important;
-  font-weight: 700 !important;
-  text-align: center !important;
+  font-weight: 400;
+  text-align: left;
   padding: 10px 14px !important;
   font-size: 12.5px !important;
   vertical-align: middle !important;
@@ -1581,6 +1672,7 @@ tr:last-child td {
 
 .pdf-body td,
 .doc-body td,
+.doc-read-content td,
 .tiptap td {
   padding: 9px 14px !important;
   font-size: 12.5px !important;
@@ -1593,6 +1685,8 @@ tr:last-child td {
 .pdf-body table[style*="border: none"],
 .doc-body table[style*="border:none"],
 .doc-body table[style*="border: none"],
+.doc-read-content table[style*="border:none"],
+.doc-read-content table[style*="border: none"],
 .tiptap table[style*="border:none"],
 .tiptap table[style*="border: none"] {
   border: none !important;
@@ -1602,6 +1696,8 @@ tr:last-child td {
 .pdf-body table[style*="border: none"] td,
 .doc-body table[style*="border:none"] td,
 .doc-body table[style*="border: none"] td,
+.doc-read-content table[style*="border:none"] td,
+.doc-read-content table[style*="border: none"] td,
 .tiptap table[style*="border:none"] td,
 .tiptap table[style*="border: none"] td {
   border: none !important;

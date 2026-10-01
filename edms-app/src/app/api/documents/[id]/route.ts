@@ -59,6 +59,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     ackDone:       raw.ack_done,
     createdAt:     raw.created_at,
     updatedAt:     raw.updated_at,
+    isTemplate:    !!raw.is_template,
+    templateSourceId: raw.template_source_id ?? null,
   };
   const sectionsMap: Record<string, string> = {};
   sections.forEach((s: any) => { sectionsMap[s.section_key] = s.content; });

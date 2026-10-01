@@ -24,7 +24,7 @@ export default function ManagePage() {
   const fetchDocs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/documents?limit=100');
+      const res = await fetch('/api/documents?limit=100&includeTemplates=1');
       if (res.ok) {
         const json = await res.json();
         setDocs(json.data || []);

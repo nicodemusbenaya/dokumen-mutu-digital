@@ -21,7 +21,9 @@
 .tiptap-body h2        { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--navy); margin: 18px 0 8px; }
 .tiptap-body h3        { font-family: var(--serif); font-size: 15px; font-weight: 700; color: var(--navy); margin: 14px 0 6px; }
 .tiptap-body ul        { padding-left: 20px; margin-bottom: 10px; }
-.tiptap-body ol        { padding-left: 22px; margin-bottom: 10px; }
+.tiptap-body ol        { counter-reset: item; list-style: none; padding-left: 0; margin-bottom: 10px; text-align: justify; }
+.tiptap-body ol > li   { counter-increment: item; position: relative; padding-left: 2.5em; margin-bottom: 4px; text-align: justify; }
+.tiptap-body ol > li::before { content: counters(item, ".") ". "; position: absolute; left: 0; top: 0; }
 .tiptap-body li        { margin-bottom: 4px; }
 .tiptap-body blockquote{ border-left: 3px solid var(--amber); padding: 8px 12px; margin: 12px 0; background: var(--amber-glow); color: var(--ink-soft); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .tiptap-body hr        { border: none; border-top: 2px solid var(--paper-line); margin: 16px 0; }
@@ -41,11 +43,10 @@
   border: 1px solid #cbd5e1;
 }
 .tiptap-body th {
-  background-color: #f1f5f9;
   border: 1px solid #94a3b8;
   padding: 8px 12px;
-  font-weight: 700;
-  text-align: center;
+  font-weight: 400;
+  text-align: left;
   font-size: 13px;
   position: relative;
 }
@@ -190,9 +191,8 @@
 }
 
 .a4-sheet th {
-  background: #f1f5f9 !important;
-  font-weight: 700 !important;
-  text-align: center !important;
+  font-weight: 400;
+  text-align: left;
 }
 
 /* ==========================================================================

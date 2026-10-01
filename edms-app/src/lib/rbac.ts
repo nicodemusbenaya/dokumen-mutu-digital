@@ -12,6 +12,7 @@ export type Role =
 
 export type Permission =
   | 'document:create'       // Buat dokumen baru
+  | 'template:set'          // Tandai/batalkan dokumen sebagai template (alias eksplisit, role sama dengan document:create)
   | 'document:edit'         // Edit draft dokumen
   | 'document:submit'       // Ajukan ke review
   | 'document:review'       // Review (Tim Mutu)
@@ -28,6 +29,7 @@ export type Permission =
 const PERMISSIONS: Record<Role, Permission[]> = {
   'Penyusun Dokumen': [
     'document:create', 'document:edit', 'document:submit',
+    'template:set',
     'document:read', 'document:generate_pdf',
     'audit:read',
   ],
@@ -45,6 +47,7 @@ const PERMISSIONS: Record<Role, Permission[]> = {
   ],
   'Admin Sistem': [
     'document:create', 'document:edit', 'document:submit',
+    'template:set',
     'document:review', 'document:approve:mgr', 'document:approve:pimpinan',
     'document:read', 'document:generate_pdf',
     'reference:create', 'reference:update', 'reference:delete',

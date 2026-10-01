@@ -76,11 +76,10 @@ Database MariaDB (edms_ups)
 ├── approvals & audit_logs
 └── master_references & document_references
 
-Storage Fisik NAS (/share/Container/edms-app/storage/)
-├── documents/
-│   ├── pdf/           (File PDF dokumen resmi Controlled Copy)
-│   └── attachments/   (Lampiran formulir / file pendukung)
-└── signatures/        (File gambar tanda tangan digital)
+Storage Fisik NAS (/share/Container/edms-data → mount ke /app/storage/)
+├── pdf/            (File PDF dokumen resmi Controlled Copy)
+├── attachments/    (Lampiran formulir / file pendukung)
+└── signatures/     (File gambar tanda tangan digital)
 ```
 
 ---
@@ -166,13 +165,17 @@ Dokumen Mutu Digital/
 | `/api/auth/login` | POST | Login & set session cookie | Publik |
 | `/api/auth/logout` | POST | Hapus session cookie | Login |
 | `/api/auth/me` | GET | Dapatkan data user saat ini | Login |
-| `/api/documents` | GET | Daftar dokumen (filter, pagination, search) | Login |
+| `/api/documents` | GET | Daftar dokumen (filter, pagination, search). **Default mengecualikan template**; `includeTemplates=1` → semua dokumen; `isTemplate=1` → hanya pustaka template (butuh `document:create`, selain itu 403) | Login |
 | `/api/documents` | POST | Buat dokumen baru | Penyusun, Admin |
+| `/api/documents/from-template` | POST | Buat dokumen baru sebagai salinan template (sections, urutan, kop, media, referensi) | Penyusun, Admin |
 | `/api/documents/[id]` | GET | Detail dokumen + sections + approvals | Login |
 | `/api/documents/[id]` | PUT | Update dokumen (optimistic locking) | Penyusun, Admin |
 | `/api/documents/[id]` | DELETE | Hapus dokumen | Admin Sistem |
+| `/api/documents/[id]/template` | POST | Tandai dokumen sebagai template (`is_template=1`) | Penyusun, Admin (`template:set`) |
+| `/api/documents/[id]/template` | DELETE | Batalkan tanda template | Penyusun, Admin (`template:set`) |
 | `/api/documents/[id]/approve` | POST | Approve/reject dengan tanda tangan digital | Reviewer, Manager, Pimpinan |
 | `/api/documents/[id]/submit` | POST | Submit dokumen untuk review | Penyusun |
+| `/api/documents/[id]/revise` | POST | Buka siklus revisi (Aktif → Draft) | Penyusun, Admin |
 | `/api/documents/[id]/pdf` | POST | Generate PDF dokumen | Login |
 | `/api/references` | GET/POST | Master referensi standar | Login / Admin |
 | `/api/references/[id]` | PUT/DELETE | Update/hapus referensi | Admin |
@@ -205,6 +208,15 @@ Dokumen Mutu Digital/
 - Tombol Hapus hanya muncul di daftar dokumen untuk admin
 - Konfirmasi modal sebelum hapus
 - Endpoint: `DELETE /api/documents/[id]` — hanya dokumen berstatus `Obsolete` yang dapat dihapus
+
+### Template Dokumen
+- Pustaka template di halaman `/templates` (hanya pengguna dengan `document:create`); menu sidebar "Template Dokumen" mengikuti hak yang sama
+- Kolom `is_template` + `template_source_id` (FK ke dokumen asal) — migrasi `sql/004_migration_template.sql` (143 blanko sudah ditandai)
+- Buat dokumen dari template: `POST /api/documents/from-template` — menyalin sections, urutan seksi, kop, referensi, berkas sumber, dan **folder media** (`storage/media/{idLama}` → `{idBaru}`) dengan rewrite seluruh URL `/uploads/media/{idLama}/` di transaksi atomik (`src/lib/templateCopy.ts`); kode duplikat → 409
+- Tandai/batal template: `POST/DELETE /api/documents/[id]/template` (permission `template:set`), tanpa syarat status, `updated_at` dipertahankan
+- Register `/documents` mengecualikan template secara default; tampil toggle "Tampilkan template" + badge baris. **Antrean approval, sidebar badge, editor, PDF, dan peta mengambil `includeTemplates=1`** sehingga template yang sedang dalam siklus approval tidak pernah tersembunyi
+- Dokumen hasil salinan lahir `Draft` / versi `1.0` dan **tidak** ikut pustaka template
+- Seed 5 template bawaan: `scripts/seed_templates.mjs` (kode `TPL.*`, idempoten by kode)
 
 ---
 

@@ -8,15 +8,15 @@ export async function GET(
 ) {
   const { path: pathSegments } = await params;
   
-  // Periksa di public/uploads
-  const publicPath = path.normalize(path.join(process.cwd(), 'public', 'uploads', ...pathSegments));
+  // Prioritas: storage/ (persisten via volume) dulu, lalu public/uploads (legacy lokal)
   const storagePath = path.normalize(path.join(process.cwd(), 'storage', ...pathSegments));
+  const publicPath = path.normalize(path.join(process.cwd(), 'public', 'uploads', ...pathSegments));
 
   let targetFile: string | null = null;
-  if (fs.existsSync(publicPath) && fs.statSync(publicPath).isFile()) {
-    targetFile = publicPath;
-  } else if (fs.existsSync(storagePath) && fs.statSync(storagePath).isFile()) {
+  if (fs.existsSync(storagePath) && fs.statSync(storagePath).isFile()) {
     targetFile = storagePath;
+  } else if (fs.existsSync(publicPath) && fs.statSync(publicPath).isFile()) {
+    targetFile = publicPath;
   }
 
   if (!targetFile) {

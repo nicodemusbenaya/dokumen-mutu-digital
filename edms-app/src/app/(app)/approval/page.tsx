@@ -18,8 +18,10 @@ export default function ApprovalPage() {
   const [loading,     setLoading]     = useState(true);
 
   const fetchDocs = useCallback(async () => {
-    const res = await fetch('/api/documents?status=Review&limit=100');
-    const res2 = await fetch('/api/documents?status=Menunggu+Approval&limit=100');
+    // includeTemplates=1: dokumen dalam antrean tidak boleh tersembunyi,
+    // termasuk template yang sedang berada dalam siklus review (Cabang #7).
+    const res  = await fetch('/api/documents?status=Review&limit=100&includeTemplates=1');
+    const res2 = await fetch('/api/documents?status=Menunggu+Approval&limit=100&includeTemplates=1');
     if (res.ok && res2.ok) {
       const j1 = await res.json();
       const j2 = await res2.json();

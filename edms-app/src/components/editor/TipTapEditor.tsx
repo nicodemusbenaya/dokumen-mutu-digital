@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { Node, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
@@ -10,6 +11,70 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import './editor.css';
+
+/**
+ * Node gambar inline. Tanpa ini ProseMirror membuang setiap <img> sehingga
+ * gambar dokumen hilang begitu pengguna mengedit bagian apa pun.
+ * (Tidak memakai @tiptap/extension-image agar tidak menambah dependensi.)
+ */
+const InlineImage = Node.create({
+  name: 'image',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      src: { default: null },
+      alt: { default: null },
+      title: { default: null },
+      width: { default: null },
+      height: { default: null },
+      style: { default: null },
+      class: { default: null },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'img' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes(HTMLAttributes)];
+  },
+});
+
+/** Pertahankan atribut gaya asli (mis. style="border:none") yang dibuang bawaan. */
+function styleAttributeConfig() {
+  return {
+    style: {
+      default: null,
+      parseHTML: (el: HTMLElement) => el.getAttribute('style'),
+      renderHTML: (attrs: Record<string, unknown>) =>
+        attrs.style ? { style: attrs.style as string } : {},
+    },
+  };
+}
+
+const StyledTable = Table.extend({
+  addAttributes() {
+    return { ...(this.parent?.() ?? {}), ...styleAttributeConfig() };
+  },
+});
+const StyledTableRow = TableRow.extend({
+  addAttributes() {
+    return { ...(this.parent?.() ?? {}), ...styleAttributeConfig() };
+  },
+});
+const StyledTableCell = TableCell.extend({
+  addAttributes() {
+    return { ...(this.parent?.() ?? {}), ...styleAttributeConfig() };
+  },
+});
+const StyledTableHeader = TableHeader.extend({
+  addAttributes() {
+    return { ...(this.parent?.() ?? {}), ...styleAttributeConfig() };
+  },
+});
 
 interface Props {
   content:  string;
@@ -21,12 +86,13 @@ export default function TipTapEditor({ content, onChange }: Props) {
     extensions: [
       StarterKit,
       Typography,
-      Table.configure({
+      InlineImage,
+      StyledTable.configure({
         resizable: true,
       }),
-      TableRow,
-      TableHeader,
-      TableCell,
+      StyledTableRow,
+      StyledTableHeader,
+      StyledTableCell,
       Placeholder.configure({ placeholder: 'Mulai ketik isi bagian dokumen di sini...' }),
     ],
     content,

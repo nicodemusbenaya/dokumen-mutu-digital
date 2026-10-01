@@ -6,7 +6,12 @@ import { hasPermission } from '@/lib/rbac';
 import { getDefaultSectionsForType } from '@/lib/documentTypes';
 
 // ─── GET /api/documents ───────────────────────────────────────
-// Query params: ?status=&bidang=&q=&page=&limit=
+// Query params: ?status=&bidang=&jenis=&q=&page=&limit=
+//   isTemplate=1     → HANYA template (pustaka; butuh document:create)
+//   includeTemplates=1 → tanpa pengecualian template (antrean approval,
+//                         editor, peta, PDF — dokumen pending tidak boleh
+//                         tersembunyi dari approver)
+//   default          → mengecualikan is_template=1 (register bersih, §8.1)
 
 export async function GET(req: NextRequest) {
   const user = await getSessionFromRequest(req);
@@ -21,8 +26,22 @@ export async function GET(req: NextRequest) {
   const limit  = Math.min(100, parseInt(searchParams.get('limit') || '50'));
   const offset = (page - 1) * limit;
 
-  let conditions = ['1=1'];
-  let params: unknown[] = [];
+  const isTemplate       = searchParams.get('isTemplate') === '1';
+  const includeTemplates = searchParams.get('includeTemplates') === '1';
+
+  // Pustaka template hanya untuk role pembuat dokumen
+  if (isTemplate && !hasPermission(user.role, 'document:create')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const conditions = ['1=1'];
+  const params: unknown[] = [];
+
+  if (isTemplate) {
+    conditions.push('d.is_template = 1');
+  } else if (!includeTemplates) {
+    conditions.push('d.is_template = 0');
+  }
 
   if (status) { conditions.push('d.status = ?'); params.push(status); }
   if (bidang) { conditions.push('d.bidang = ?'); params.push(bidang); }
@@ -37,7 +56,8 @@ export async function GET(req: NextRequest) {
 
   const [docs, countRows] = await Promise.all([
     query<any[]>(
-      `SELECT d.*, u.full_name AS penyusun_name
+      `SELECT d.*, u.full_name AS penyusun_name,
+              (SELECT COUNT(*) FROM document_sections s WHERE s.document_id = d.id) AS section_count
        FROM documents d
        LEFT JOIN users u ON u.id = d.penyusun_id
        WHERE ${where}
@@ -51,8 +71,16 @@ export async function GET(req: NextRequest) {
     ),
   ]);
 
+  // Mapping snake_case → camelCase (AGENTS §9.7) — alias disertakan agar
+  // konsumen lama yang membaca kolom mentah tetap berfungsi.
+  const data = docs.map(d => ({
+    ...d,
+    isTemplate:  !!d.is_template,
+    sectionCount: Number(d.section_count ?? 0),
+  }));
+
   return NextResponse.json({
-    data:  docs,
+    data,
     total: countRows[0]?.total ?? 0,
     page,
     limit,

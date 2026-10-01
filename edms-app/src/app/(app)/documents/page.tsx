@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import type { Document } from '@/types';
-import { IconPlus, IconSearch, IconFilter, IconTrash } from '@/components/icons/Icons';
+import type { Document, TemplateRow } from '@/types';
+import { IconPlus, IconSearch, IconTrash, IconTemplate, IconEditor } from '@/components/icons/Icons';
 import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS } from '@/lib/documentTypes';
+import { hasPermission } from '@/lib/rbac';
+import TemplatePicker from '@/components/template/TemplatePicker';
+import TemplateForm from '@/components/template/TemplateForm';
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: 'Semua Status' },
@@ -23,6 +26,8 @@ const STATUS_CLASS: Record<string, string> = {
   'Aktif': 'aktif',
   'Obsolete': 'obsolete',
 };
+
+const PAGE_SIZE = 50; // selaras dengan default limit API /api/documents
 
 export default function DocumentsPage() {
   const searchParams = useSearchParams();
@@ -42,6 +47,17 @@ export default function DocumentsPage() {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; doc: Document | null }>({ open: false, doc: null });
   const [deleting, setDeleting] = useState(false);
 
+  // Dropdown "Dokumen Baru" + pustaka template (RENCANA §6.2/§6.3)
+  const [dropdownOpen,  setDropdownOpen]  = useState(false);
+  const [pickerOpen,    setPickerOpen]    = useState(false);
+  const [formTemplate,  setFormTemplate]  = useState<TemplateRow | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
+
   const fetchDocs = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -49,17 +65,36 @@ export default function DocumentsPage() {
     if (status) params.set('status', status);
     if (bidang) params.set('bidang', bidang);
     if (jenis)  params.set('jenis', jenis);
+    // Pencarian menyentuh register + pustaka template (R1);
+    // toggle manual untuk penelusuran biasa.
+    if (showTemplates || q.trim()) params.set('includeTemplates', '1');
     params.set('page', String(page));
+    params.set('limit', String(PAGE_SIZE));
     const res = await fetch(`/api/documents?${params}`);
     if (res.ok) {
       const json = await res.json();
       setDocs(json.data);
       setTotal(json.total);
+      // Filter menyusutkan hasil -> jangan biarkan halaman melewati halaman terakhir.
+      const lastPage = Math.max(1, Math.ceil((json.total || 0) / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
     }
     setLoading(false);
-  }, [q, status, bidang, jenis, page]);
+  }, [q, status, bidang, jenis, page, showTemplates]);
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
+
+  // Tutup dropdown saat klik di luar
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [dropdownOpen]);
 
   // Fetch current user role
   useEffect(() => {
@@ -97,11 +132,54 @@ export default function DocumentsPage() {
             Register resmi seluruh dokumen mutu terkendali unit. Terdaftar: <strong style={{ color: 'var(--ink)' }}>{total} dokumen</strong>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/editor/new" className="btn btn-primary">
+        <div style={{ display: 'flex', gap: 10, position: 'relative' }} ref={dropdownRef}>
+          <button className="btn btn-primary" onClick={() => setDropdownOpen(o => !o)} aria-haspopup="menu" aria-expanded={dropdownOpen}>
             <IconPlus size={16} />
-            <span>Buat Dokumen Baru</span>
-          </Link>
+            <span>Dokumen Baru</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 2, transform: dropdownOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {dropdownOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 40,
+              minWidth: 250, background: 'var(--card)', border: '1px solid var(--paper-line-dark)',
+              borderRadius: 'var(--r-md)', boxShadow: '0 10px 30px rgba(15,23,42,.14)', padding: 6,
+            }}>
+              <button
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+                  width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
+                  background: 'none', cursor: 'pointer', borderRadius: 6,
+                }}
+                onClick={() => { setDropdownOpen(false); router.push('/editor/new'); }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  <IconEditor size={14} /> Dokumen kosong
+                </span>
+                <span style={{ fontSize: 11.5, color: 'var(--ink-soft)', paddingLeft: 22 }}>
+                  Mulai dari nol — perilaku lama (editor baru)
+                </span>
+              </button>
+              {userRole && hasPermission(userRole, 'document:create') && (
+                <button
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+                    width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
+                    background: 'none', cursor: 'pointer', borderRadius: 6,
+                  }}
+                  onClick={() => { setDropdownOpen(false); setPickerOpen(true); }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                    <IconTemplate size={14} /> Dari template…
+                  </span>
+                  <span style={{ fontSize: 11.5, color: 'var(--ink-soft)', paddingLeft: 22 }}>
+                    Salin sections, kop, gambar & referensi dari template
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -155,9 +233,22 @@ export default function DocumentsPage() {
           onChange={e => { setBidang(e.target.value); setPage(1); }}
         />
 
+        <label
+          style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: 'var(--ink-soft)', cursor: 'pointer', userSelect: 'none' }}
+          title="Tampilkan juga 148 dokumen yang ditandai sebagai template"
+        >
+          <input
+            type="checkbox"
+            checked={showTemplates}
+            onChange={e => { setShowTemplates(e.target.checked); setPage(1); }}
+            style={{ accentColor: 'var(--pln-blue, #0C4DA2)', cursor: 'pointer' }}
+          />
+          Tampilkan template
+        </label>
+
         <button
           className="btn btn-ghost btn-sm"
-          onClick={() => { setQ(''); setStatus(''); setBidang(''); setJenis(''); setPage(1); }}
+          onClick={() => { setQ(''); setStatus(''); setBidang(''); setJenis(''); setShowTemplates(false); setPage(1); }}
         >
           Reset
         </button>
@@ -197,6 +288,11 @@ export default function DocumentsPage() {
               <tr key={d.id} className="row-click" onClick={() => router.push(`/documents/${d.id}`)}>
                 <td style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12, color: 'var(--ink)' }}>
                   {d.kode}
+                  {(d.is_template || Number(d.is_template) === 1) && (
+                    <span className="badge" style={{ marginLeft: 6, background: '#EDE9FE', color: '#6D28D9', border: '1px solid #DDD6FE', fontSize: 10, padding: '2px 7px' }}>
+                      Template
+                    </span>
+                  )}
                 </td>
                 <td>
                   <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{d.judul}</div>
@@ -243,6 +339,41 @@ export default function DocumentsPage() {
         </table>
       </div>
 
+      {/* Pagination */}
+      {total > 0 && (
+        <>
+          <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 14 }}>
+            Menampilkan{' '}
+            <strong style={{ color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+              {rangeStart}&ndash;{rangeEnd}
+            </strong>{' '}
+            dari{' '}
+            <strong style={{ color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{total}</strong> dokumen
+          </div>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12, alignItems: 'center' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+              >
+                Sebelumnya
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--ink-soft)', fontVariantNumeric: 'tabular-nums', padding: '0 8px' }}>
+                Halaman {page} dari {totalPages}
+              </span>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || loading}
+              >
+                Selanjutnya
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Delete Confirmation Modal */}
       {deleteModal.open && deleteModal.doc && (
         <div className="overlay" onClick={() => !deleting && setDeleteModal({ open: false, doc: null })}>
@@ -267,6 +398,17 @@ export default function DocumentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Pilih template → form isian → buat dokumen */}
+      {pickerOpen && (
+        <TemplatePicker
+          onClose={() => setPickerOpen(false)}
+          onSelect={t => { setPickerOpen(false); setFormTemplate(t); }}
+        />
+      )}
+      {formTemplate && (
+        <TemplateForm template={formTemplate} onClose={() => setFormTemplate(null)} />
       )}
     </>
   );

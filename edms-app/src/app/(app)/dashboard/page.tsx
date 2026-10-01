@@ -43,11 +43,15 @@ export default async function DashboardPage() {
 
   try {
     [statsRows, pendingDocs, recentLogs] = await Promise.all([
+      // Statistik register (total/aktif/draft) mengecualikan template —
+      // konsisten dengan /documents. Kolom pending dihitung tanpa syarat
+      // is_template agar selalu = isi antrean approval (template boleh
+      // berada dalam siklus — Cabang #7 — dan tidak boleh tersembunyi).
       query<any[]>(`
         SELECT
-          COUNT(*) AS total,
-          SUM(status='Aktif') AS aktif,
-          SUM(status='Draft') AS draft,
+          SUM(is_template = 0) AS total,
+          SUM(is_template = 0 AND status='Aktif') AS aktif,
+          SUM(is_template = 0 AND status='Draft') AS draft,
           SUM(status IN ('Review','Menunggu Approval')) AS pending
         FROM documents
       `),

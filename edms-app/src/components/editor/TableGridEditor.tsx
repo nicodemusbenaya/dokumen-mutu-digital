@@ -1,313 +1,198 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import TipTapEditor from './TipTapEditor';
 import { IconTrash, IconPlus, IconTable, IconEditor } from '@/components/icons/Icons';
+import {
+  type GridCell,
+  type GridRow,
+  type GridState,
+  parseTableFromHtml,
+  buildHtmlFromTable,
+  toState,
+  gridColumnCount,
+  attrsToStyle,
+  flattenRows,
+  cellToText,
+  textToCell,
+} from './tableGridHtml';
 
 interface Props {
   content: string;
   onChange: (html: string) => void;
-  sectionKey?: string;
-  sectionLabel?: string;
 }
 
-interface ParsedTable {
-  hasTable: boolean;
-  prefixHtml: string;
-  suffixHtml: string;
-  headers: string[];
-  rows: string[][];
-}
-
-function parseTableFromHtml(html: string): ParsedTable {
-  if (!html || !html.includes('<table')) {
-    return {
-      hasTable: false,
-      prefixHtml: html || '',
-      suffixHtml: '',
-      headers: [],
-      rows: [],
-    };
-  }
-
-  const tableMatch = html.match(/<table[\s\S]*?<\/table>/i);
-  if (!tableMatch) {
-    return {
-      hasTable: false,
-      prefixHtml: html,
-      suffixHtml: '',
-      headers: [],
-      rows: [],
-    };
-  }
-
-  const tableHtml = tableMatch[0];
-  // Ignore layout/signature tables (border:none or no <th> tags)
-  const isBorderless = /border:\s*none/i.test(tableHtml);
-  const hasTh = /<th[\s\S]*?<\/th>/i.test(tableHtml);
-  if (isBorderless || !hasTh) {
-    return {
-      hasTable: false,
-      prefixHtml: html || '',
-      suffixHtml: '',
-      headers: [],
-      rows: [],
-    };
-  }
-
-  const tableIndex = html.indexOf(tableHtml);
-  const prefixHtml = html.slice(0, tableIndex).trim();
-  const suffixHtml = html.slice(tableIndex + tableHtml.length).trim();
-
-  // Parse table rows
-  const trMatches = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
-  let headers: string[] = [];
-  const rows: string[][] = [];
-
-  for (let i = 0; i < trMatches.length; i++) {
-    const tr = trMatches[i];
-
-    // Check for <th>
-    const thMatches = tr.match(/<th[\s\S]*?<\/th>/gi);
-    if (thMatches && thMatches.length > 0) {
-      headers = thMatches.map(th => th.replace(/<[^>]+>/g, '').trim());
-      continue;
-    }
-
-    // Check for <td>
-    const tdMatches = tr.match(/<td[\s\S]*?<\/td>/gi);
-    if (tdMatches && tdMatches.length > 0) {
-      const rowCells = tdMatches.map(td => td.replace(/<[^>]+>/g, '').trim());
-      // Skip helper numbering row if it's purely numbers like [2, 3, 4...] or [7, '', 8, 9]
-      const isHelperRow = rowCells.every(c => !c || /^[0-9]+$/.test(c));
-      if (isHelperRow && rows.length === 0 && headers.length > 0) {
-        continue; // Skip legacy helper row
-      }
-
-      if (headers.length === 0 && i === 0) {
-        headers = rowCells;
-      } else {
-        rows.push(rowCells);
-      }
-    }
-  }
-
-  // Ensure every row has the same number of cells as headers
-  const colCount = headers.length || (rows[0] ? rows[0].length : 4);
-  const normalizedRows = rows.map(r => {
-    const cells = [...r];
-    while (cells.length < colCount) cells.push('');
-    return cells.slice(0, colCount);
-  });
-
-  return {
-    hasTable: true,
-    prefixHtml,
-    suffixHtml,
-    headers,
-    rows: normalizedRows,
-  };
-}
-
-function buildHtmlFromTable(
-  prefixHtml: string,
-  headers: string[],
-  rows: string[][],
-  suffixHtml: string
-): string {
-  let tableHtml = '<table border="1" cellpadding="8" style="width:100%; border-collapse:collapse; margin:14px 0;">\n';
-  tableHtml += '  <thead>\n    <tr style="background:#f1f5f9;">\n';
-  headers.forEach((h, idx) => {
-    const widthStyle = idx === 0 ? 'width:8%; ' : '';
-    tableHtml += `      <th style="${widthStyle}padding:8px 12px; border:1px solid #000; font-weight:bold; text-align:center; background:#f1f5f9;">${h || 'Kolom ' + (idx + 1)}</th>\n`;
-  });
-  tableHtml += '    </tr>\n  </thead>\n  <tbody>\n';
-
-  rows.forEach(r => {
-    tableHtml += '    <tr>\n';
-    r.forEach((cell, colIdx) => {
-      const align = colIdx === 0 ? 'center' : 'left';
-      tableHtml += `      <td style="padding:8px 12px; border:1px solid #000; vertical-align:top; text-align:${align};">${cell || ''}</td>\n`;
-    });
-    tableHtml += '    </tr>\n';
-  });
-  tableHtml += '  </tbody>\n</table>';
-
-  const parts = [];
-  if (prefixHtml) parts.push(prefixHtml);
-  parts.push(tableHtml);
-  if (suffixHtml) parts.push(suffixHtml);
-
-  return parts.join('\n');
-}
-
-export default function TableGridEditor({
-  content,
-  onChange,
-  sectionKey,
-  sectionLabel,
-}: Props) {
+export default function TableGridEditor({ content, onChange }: Props) {
   const parsed = useMemo(() => parseTableFromHtml(content), [content]);
   const [viewMode, setViewMode] = useState<'grid' | 'tiptap'>(
     parsed.hasTable ? 'grid' : 'tiptap'
   );
-
-  const [headers, setHeaders] = useState<string[]>(parsed.headers);
-  const [rows, setRows] = useState<string[][]>(parsed.rows);
-  const [prefixText, setPrefixText] = useState<string>(parsed.prefixHtml);
-  const [suffixText, setSuffixText] = useState<string>(parsed.suffixHtml);
+  const [grid, setGrid] = useState<GridState>(() => toState(parsed));
   const [pasteModalOpen, setPasteModalOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [hasHeaderRow, setHasHeaderRow] = useState(true);
 
-  // Sync internal state when external content changes (e.g. template loaded)
-  useEffect(() => {
-    setHeaders(parsed.headers);
-    setRows(parsed.rows);
-    setPrefixText(parsed.prefixHtml);
-    setSuffixText(parsed.suffixHtml);
-    if (parsed.hasTable && viewMode !== 'tiptap') {
-      setViewMode('grid');
-    }
-  }, [parsed]);
-
-  const commitChanges = useCallback(
-    (newHeaders: string[], newRows: string[][], newPrefix = prefixText, newSuffix = suffixText) => {
-      setHeaders(newHeaders);
-      setRows(newRows);
-      const newHtml = buildHtmlFromTable(newPrefix, newHeaders, newRows, newSuffix);
-      onChange(newHtml);
-    },
-    [prefixText, suffixText, onChange]
+  // Grid ter-sinkron (derive saat render): bila isi grid sudah tidak sama lagi
+  // dengan konten terkini — diubah dari luar lewat impor, template, atau simpan —
+  // bangun ulang dari konten tanpa perlu setState di dalam effect.
+  const syncedGrid = useMemo(
+    () => (buildHtmlFromTable(grid) === content ? grid : toState(parsed)),
+    [grid, content, parsed]
   );
+  // Tanpa tabel, selalu paksa mode teks bebas (TipTap).
+  const mode: 'grid' | 'tiptap' = parsed.hasTable ? viewMode : 'tiptap';
+
+  const commit = useCallback(
+    (next: GridState) => {
+      setGrid(next);
+      onChange(buildHtmlFromTable(next));
+    },
+    [onChange]
+  );
+
+  const { headers, rows, prefix, suffix, tableAttrs, headRowAttrs } = syncedGrid;
 
   const handleCellChange = (rowIndex: number, colIndex: number, val: string) => {
     const updated = rows.map((r, rIdx) => {
-      if (rIdx === rowIndex) {
-        const rowCopy = [...r];
-        rowCopy[colIndex] = val;
-        return rowCopy;
-      }
-      return r;
+      if (rIdx !== rowIndex) return r;
+      const copy = [...r];
+      const cell = copy[colIndex];
+      if (cell) copy[colIndex] = { ...cell, html: textToCell(val) };
+      return copy;
     });
-    commitChanges(headers, updated);
+    commit({ ...syncedGrid, rows: updated });
+  };
+
+  const handleHeaderChange = (colIndex: number, val: string) => {
+    if (!headers) return;
+    const copy = [...headers];
+    const cell = copy[colIndex];
+    if (cell) copy[colIndex] = { ...cell, html: textToCell(val) };
+    commit({ ...syncedGrid, headers: copy });
   };
 
   const handleAddRow = () => {
-    const colCount = headers.length || 4;
-    const newRow = Array(colCount).fill('');
-    // Auto-number first column if it's No
-    newRow[0] = String(rows.length + 1);
-    const updated = [...rows, newRow];
-    commitChanges(headers, updated);
+    const colCount = gridColumnCount(syncedGrid);
+    const flat = flattenRows(rows);
+    const newRow: GridCell[] = Array.from({ length: colCount }, () => ({
+      html: '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'td',
+    }));
+    newRow[0] = { html: String(flat.length + 1), colSpan: 1, rowSpan: 1, attrs: '', tag: 'td' };
+    commit({ ...syncedGrid, rows: [...flat.map((r) => r as GridRow), newRow as GridRow] });
   };
+
+  const renumberFirstCol = (list: GridCell[][]): GridCell[][] =>
+    list.map((r, idx) => {
+      const copy = [...r];
+      const text = cellToText(copy[0]?.html ?? '');
+      if (text === '' || /^\d+$/.test(text)) {
+        copy[0] = { ...(copy[0] || { html: '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'td' }), html: String(idx + 1) };
+      }
+      return copy;
+    });
 
   const handleDeleteRow = (rowIndex: number) => {
     if (rows.length <= 1) {
       if (!confirm('Hapus baris ini? Tabel akan menjadi kosong.')) return;
     }
-    const updated = rows.filter((_, idx) => idx !== rowIndex);
-    // Renumber first column if sequential
-    const renumbered = updated.map((r, idx) => {
-      const copy = [...r];
-      if (/^[0-9]+$/.test(copy[0]) || copy[0] === '') {
-        copy[0] = String(idx + 1);
-      }
-      return copy;
-    });
-    commitChanges(headers, renumbered);
+    const flat = flattenRows(rows).filter((_, idx) => idx !== rowIndex);
+    commit({ ...syncedGrid, rows: renumberFirstCol(flat).map((r) => r as GridRow) });
   };
 
-  const handleMoveRowUp = (rowIndex: number) => {
-    if (rowIndex <= 0) return;
-    const copy = [...rows];
-    const temp = copy[rowIndex];
-    copy[rowIndex] = copy[rowIndex - 1];
-    copy[rowIndex - 1] = temp;
-    // Renumber first column if sequential
+  const swapRows = (a: number, b: number) => {
+    if (a < 0 || b < 0 || a >= rows.length || b >= rows.length) return;
+    const flat = flattenRows(rows);
+    const copy = [...flat];
+    const tmp = copy[a];
+    copy[a] = copy[b];
+    copy[b] = tmp;
     const renumbered = copy.map((r, idx) => {
-      const rowItem = [...r];
-      if (/^[0-9]+$/.test(rowItem[0])) {
-        rowItem[0] = String(idx + 1);
-      }
-      return rowItem;
+      const text = cellToText(r[0]?.html ?? '');
+      if (!/^\d+$/.test(text)) return r;
+      const c = [...r];
+      c[0] = { ...c[0], html: String(idx + 1) };
+      return c;
     });
-    commitChanges(headers, renumbered);
-  };
-
-  const handleMoveRowDown = (rowIndex: number) => {
-    if (rowIndex >= rows.length - 1) return;
-    const copy = [...rows];
-    const temp = copy[rowIndex];
-    copy[rowIndex] = copy[rowIndex + 1];
-    copy[rowIndex + 1] = temp;
-    // Renumber first column if sequential
-    const renumbered = copy.map((r, idx) => {
-      const rowItem = [...r];
-      if (/^[0-9]+$/.test(rowItem[0])) {
-        rowItem[0] = String(idx + 1);
-      }
-      return rowItem;
-    });
-    commitChanges(headers, renumbered);
+    commit({ ...syncedGrid, rows: renumbered.map((r) => r as GridRow) });
   };
 
   const handleAutoRenumber = () => {
-    const renumbered = rows.map((r, idx) => {
-      const copy = [...r];
-      copy[0] = String(idx + 1);
-      return copy;
+    const flat = flattenRows(rows);
+    const renumbered = flat.map((r, idx) => {
+      const c = [...r];
+      c[0] = { ...(c[0] || { html: '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'td' }), html: String(idx + 1) };
+      return c;
     });
-    commitChanges(headers, renumbered);
+    commit({ ...syncedGrid, rows: renumbered.map((r) => r as GridRow) });
   };
 
   const handleImportExcel = () => {
     if (!pasteText.trim()) return;
-    const lines = pasteText.trim().split(/\r?\n/).map(l => l.split('\t'));
-    if (lines.length === 0) return;
+    const lines = pasteText.trim().split(/\r?\n/).map((l) => l.split('\t'));
+    if (!lines.length) return;
 
-    let newHeaders = headers;
-    let newRows: string[][] = [];
+    let newHeaders: GridCell[] | null = headers;
+    let dataLines: string[][] = lines;
 
     if (hasHeaderRow && lines.length > 1) {
-      newHeaders = lines[0].map(h => h.trim() || 'Kolom');
-      newRows = lines.slice(1);
-    } else {
-      newRows = lines;
+      newHeaders = lines[0].map((h) => ({
+        html: textToCell(h.trim()), colSpan: 1, rowSpan: 1, attrs: '', tag: 'th' as const,
+      }));
+      dataLines = lines.slice(1);
     }
 
-    // Normalisasi kolom
-    const maxCols = Math.max(newHeaders.length, ...newRows.map(r => r.length));
-    while (newHeaders.length < maxCols) {
-      newHeaders.push(`Kolom ${newHeaders.length + 1}`);
+    const width = Math.max(
+      newHeaders?.length ?? 0,
+      ...dataLines.map((l) => l.length)
+    );
+    if (newHeaders) {
+      while (newHeaders.length < width) {
+        newHeaders.push({ html: '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'th' });
+      }
     }
-    const normalized = newRows.map(r => {
-      const row = [...r];
-      while (row.length < maxCols) row.push('');
-      return row;
+    const normalized: GridCell[][] = dataLines.map((l) => {
+      const row: GridCell[] = l.map((v) => ({
+        html: textToCell(v), colSpan: 1, rowSpan: 1, attrs: '', tag: 'td' as const,
+      }));
+      while (row.length < width) row.push({ html: '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'td' });
+      return row.slice(0, width);
     });
 
-    commitChanges(newHeaders, normalized);
+    commit({
+      ...syncedGrid,
+      headers: newHeaders,
+      rows: normalized.map((r) => r as GridRow),
+      tableAttrs,
+      headRowAttrs: newHeaders ? headRowAttrs : '',
+    });
     setPasteModalOpen(false);
     setPasteText('');
   };
 
-  // If this section has NO table at all, render standard TipTap editor directly
-  if (!parsed.hasTable && viewMode === 'tiptap') {
+  // ── Mode teks bebas (TipTap) ────────────────────────────────────
+  if (!parsed.hasTable) {
     return (
       <div>
-        <div style={{ padding: '8px 16px', background: '#f8fafc', borderBottom: '1px solid var(--paper-line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '8px 16px', background: '#f8fafc', borderBottom: '1px solid var(--paper-line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
-            Mode Editor Teks Bebas (Rich Text)
+            {parsed.blocked
+              ? 'Mode Editor Teks Bebas — tabel/gambar kompleks di bagian ini biarkan ditangani editor kaya teks agar format asli tidak hilang.'
+              : 'Mode Editor Teks Bebas (Rich Text)'}
           </div>
           <button
             type="button"
             className="btn btn-xs btn-outline"
             onClick={() => {
-              // Convert to table template
+              const colCount = gridColumnCount(syncedGrid);
               const defaultHeaders = ['No.', 'Uraian / Item Rekaman', 'Keterangan'];
-              const defaultRows = [['1', '', '']];
-              commitChanges(defaultHeaders, defaultRows, content);
+              const pad: GridCell[] = defaultHeaders.map((h) => ({
+                html: textToCell(h), colSpan: 1, rowSpan: 1, attrs: '', tag: 'th',
+              }));
+              while (pad.length < colCount && colCount > 3) pad.push({ html: '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'th' });
+              const row: GridCell[] = Array.from({ length: colCount || 3 }, (_, i) => ({
+                html: i === 0 ? '1' : '', colSpan: 1, rowSpan: 1, attrs: '', tag: 'td',
+              }));
+              commit({ headers: pad, rows: [row as GridRow], prefix, suffix, tableAttrs: '', headRowAttrs: '' });
               setViewMode('grid');
             }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -320,6 +205,9 @@ export default function TableGridEditor({
       </div>
     );
   }
+
+  const colCount = gridColumnCount(syncedGrid);
+  const headerCells = headers ?? [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -346,16 +234,16 @@ export default function TableGridEditor({
               fontWeight: 700,
               padding: '2px 8px',
               borderRadius: 4,
-              background: viewMode === 'grid' ? '#0284c7' : 'var(--navy)',
+              background: mode === 'grid' ? '#0284c7' : 'var(--navy)',
               color: '#fff',
             }}
           >
-            {viewMode === 'grid' ? <IconTable size={13} /> : <IconEditor size={13} />}
-            {viewMode === 'grid' ? 'Grid Tabel Interaktif' : 'Editor Teks TipTap'}
+            {mode === 'grid' ? <IconTable size={13} /> : <IconEditor size={13} />}
+            {mode === 'grid' ? 'Grid Tabel Interaktif' : 'Editor Teks TipTap'}
           </span>
           <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
-            {viewMode === 'grid'
-              ? `${headers.length} Kolom · ${rows.length} Baris Data`
+            {mode === 'grid'
+              ? `${colCount} Kolom · ${rows.length} Baris Data`
               : 'Edit leluasa dengan WYSIWYG TipTap'}
           </span>
         </div>
@@ -363,16 +251,19 @@ export default function TableGridEditor({
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
-            onClick={() => setViewMode('grid')}
+            onClick={() => {
+              setGrid(toState(parsed));
+              setViewMode('grid');
+            }}
             style={{
               padding: '4px 10px',
               borderRadius: 4,
               fontSize: 12,
-              fontWeight: viewMode === 'grid' ? 700 : 500,
+              fontWeight: mode === 'grid' ? 700 : 500,
               border: '1px solid',
-              borderColor: viewMode === 'grid' ? 'var(--navy)' : 'var(--paper-line)',
-              background: viewMode === 'grid' ? '#fff' : 'transparent',
-              color: viewMode === 'grid' ? 'var(--navy)' : 'var(--ink-soft)',
+              borderColor: mode === 'grid' ? 'var(--navy)' : 'var(--paper-line)',
+              background: mode === 'grid' ? '#fff' : 'transparent',
+              color: mode === 'grid' ? 'var(--navy)' : 'var(--ink-soft)',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
@@ -389,11 +280,11 @@ export default function TableGridEditor({
               padding: '4px 10px',
               borderRadius: 4,
               fontSize: 12,
-              fontWeight: viewMode === 'tiptap' ? 700 : 500,
+              fontWeight: mode === 'tiptap' ? 700 : 500,
               border: '1px solid',
-              borderColor: viewMode === 'tiptap' ? 'var(--navy)' : 'var(--paper-line)',
-              background: viewMode === 'tiptap' ? '#fff' : 'transparent',
-              color: viewMode === 'tiptap' ? 'var(--navy)' : 'var(--ink-soft)',
+              borderColor: mode === 'tiptap' ? 'var(--navy)' : 'var(--paper-line)',
+              background: mode === 'tiptap' ? '#fff' : 'transparent',
+              color: mode === 'tiptap' ? 'var(--navy)' : 'var(--ink-soft)',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
@@ -406,18 +297,18 @@ export default function TableGridEditor({
         </div>
       </div>
 
-      {viewMode === 'tiptap' ? (
+      {mode === 'tiptap' ? (
         <TipTapEditor content={content} onChange={onChange} />
       ) : (
         <div style={{ padding: '16px 20px', background: '#fff' }}>
           {/* Teks pengantar sebelum tabel jika ada */}
-          {prefixText ? (
+          {prefix ? (
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Teks Pengantar Sebelum Tabel
               </label>
               <div
-                dangerouslySetInnerHTML={{ __html: prefixText }}
+                dangerouslySetInnerHTML={{ __html: prefix }}
                 style={{
                   padding: '10px 14px',
                   background: '#f8fafc',
@@ -434,34 +325,53 @@ export default function TableGridEditor({
           {/* Interactive Grid Table */}
           <div style={{ overflowX: 'auto', border: '1.5px solid #cbd5e1', borderRadius: 6, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#0b2545', color: '#fff' }}>
-                  {headers.map((h, hIdx) => (
-                    <th
-                      key={hIdx}
-                      style={{
-                        padding: '10px 12px',
-                        borderRight: '1px solid rgba(255,255,255,0.15)',
-                        textAlign: hIdx === 0 ? 'center' : 'left',
-                        width: hIdx === 0 ? '70px' : undefined,
-                        fontWeight: 600,
-                        letterSpacing: '0.02em',
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                  <th style={{ width: '50px', textAlign: 'center', padding: '10px 6px' }}>Aksi</th>
-                </tr>
-              </thead>
+              {headers ? (
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid #cbd5e1' }}>
+                    {headers.map((h, hIdx) => (
+                      <th
+                        key={hIdx}
+                        colSpan={h.colSpan > 1 ? h.colSpan : undefined}
+                        rowSpan={h.rowSpan > 1 ? h.rowSpan : undefined}
+                        style={{
+                          padding: '10px 12px',
+                          borderRight: '1px solid #cbd5e1',
+                          textAlign: hIdx === 0 ? 'center' : 'left',
+                          width: hIdx === 0 ? '70px' : undefined,
+                          fontWeight: 600,
+                          letterSpacing: '0.02em',
+                          ...attrsToStyle(h.attrs),
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={cellToText(h.html)}
+                          onChange={e => handleHeaderChange(hIdx, e.target.value)}
+                          style={{
+                            width: '100%',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'inherit',
+                            font: 'inherit',
+                            textAlign: 'inherit',
+                            padding: 0,
+                            outlineOffset: 2,
+                          }}
+                        />
+                      </th>
+                    ))}
+                    <th style={{ width: '50px', textAlign: 'center', padding: '10px 6px' }}>Aksi</th>
+                  </tr>
+                </thead>
+              ) : null}
               <tbody>
-                {rows.length === 0 ? (
+                {rows.length === 0 && headerCells.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={headers.length + 1}
+                      colSpan={colCount + 1}
                       style={{ textAlign: 'center', padding: '24px', color: 'var(--ink-muted)', fontStyle: 'italic' }}
                     >
-                      Belum ada baris data. Klik tombol "+ Tambah Baris Baru" di bawah untuk mengisi tabel.
+                      Belum ada baris data. Klik tombol &quot;+ Tambah Baris Baru&quot; di bawah untuk mengisi tabel.
                     </td>
                   </tr>
                 ) : (
@@ -469,62 +379,68 @@ export default function TableGridEditor({
                     <tr
                       key={rIdx}
                       style={{
-                        background: rIdx % 2 === 0 ? '#fff' : '#f8fafc',
                         borderBottom: '1px solid #e2e8f0',
                       }}
                     >
-                      {row.map((cell, cIdx) => (
-                        <td
-                          key={cIdx}
-                          style={{
-                            padding: '6px 8px',
-                            borderRight: '1px solid #e2e8f0',
-                            verticalAlign: 'top',
-                            textAlign: cIdx === 0 ? 'center' : 'left',
-                          }}
-                        >
-                          {cIdx === 0 ? (
-                            <input
-                              type="text"
-                              value={cell}
-                              onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
-                              style={{
-                                width: '100%',
-                                textAlign: 'center',
-                                padding: '6px 4px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: 4,
-                                fontSize: 12.5,
-                                fontWeight: 600,
-                                background: '#fff',
-                              }}
-                            />
-                          ) : (
-                            <textarea
-                              rows={2}
-                              value={cell}
-                              placeholder={`Isi ${headers[cIdx] || 'kolom'}...`}
-                              onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '6px 8px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: 4,
-                                fontSize: 12.5,
-                                lineHeight: 1.4,
-                                fontFamily: 'inherit',
-                                resize: 'vertical',
-                                background: '#fff',
-                              }}
-                            />
-                          )}
-                        </td>
-                      ))}
+                      {row.map((cell, cIdx) =>
+                        cell === null ? (
+                          <React.Fragment key={`s${cIdx}`} />
+                        ) : (
+                          <td
+                            key={cIdx}
+                            colSpan={cell.colSpan > 1 ? cell.colSpan : undefined}
+                            rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
+                            style={{
+                              padding: '6px 8px',
+                              borderRight: '1px solid #e2e8f0',
+                              verticalAlign: 'top',
+                              textAlign: cIdx === 0 ? 'center' : 'left',
+                              ...attrsToStyle(cell.attrs),
+                            }}
+                          >
+                            {cIdx === 0 ? (
+                              <input
+                                type="text"
+                                value={cellToText(cell.html)}
+                                onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  textAlign: 'center',
+                                  padding: '6px 4px',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 4,
+                                  fontSize: 12.5,
+                                  fontWeight: 600,
+                                  background: '#fff',
+                                }}
+                              />
+                            ) : (
+                              <textarea
+                                rows={2}
+                                value={cellToText(cell.html)}
+                                placeholder={`Isi ${headerCells[cIdx] ? cellToText(headerCells[cIdx].html) : `kolom ${cIdx + 1}`}...`}
+                                onChange={e => handleCellChange(rIdx, cIdx, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: 4,
+                                  fontSize: 12.5,
+                                  lineHeight: 1.4,
+                                  fontFamily: 'inherit',
+                                  resize: 'vertical',
+                                  background: '#fff',
+                                }}
+                              />
+                            )}
+                          </td>
+                        )
+                      )}
                       <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '6px 4px', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                           <button
                             type="button"
-                            onClick={() => handleMoveRowUp(rIdx)}
+                            onClick={() => swapRows(rIdx, rIdx - 1)}
                             disabled={rIdx === 0}
                             title="Pindah ke atas"
                             style={{
@@ -542,7 +458,7 @@ export default function TableGridEditor({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleMoveRowDown(rIdx)}
+                            onClick={() => swapRows(rIdx, rIdx + 1)}
                             disabled={rIdx === rows.length - 1}
                             title="Pindah ke bawah"
                             style={{
@@ -614,7 +530,7 @@ export default function TableGridEditor({
                 title="Menyusun ulang nomor urut kolom 1 secara otomatis dari 1 sampai akhir"
                 style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
               >
-                <span>🔢 Urutkan No. 1, 2, 3</span>
+                <span>Urutkan No. 1, 2, 3</span>
               </button>
 
               <button
@@ -624,12 +540,12 @@ export default function TableGridEditor({
                 title="Impor atau tempel data tabel langsung dari Microsoft Excel atau Google Sheets"
                 style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5, borderColor: '#10b981', color: '#047857' }}
               >
-                <span>📋 Paste dari Excel</span>
+                <span>Paste dari Excel</span>
               </button>
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
-              💡 <em>Teks dalam tabel otomatis tersimpan dan terformat rapi pada dokumen resmi / PDF.</em>
+              <em>Teks dalam tabel otomatis tersimpan dan terformat rapi pada dokumen resmi / PDF.</em>
             </div>
           </div>
 
@@ -639,7 +555,7 @@ export default function TableGridEditor({
               <div className="modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                   <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span>📋 Impor / Paste Tabel dari Excel</span>
+                    <span>Impor / Paste Tabel dari Excel</span>
                   </div>
                   <button className="modal-close" onClick={() => setPasteModalOpen(false)}>×</button>
                 </div>
@@ -696,13 +612,13 @@ export default function TableGridEditor({
           )}
 
           {/* Teks penutup setelah tabel jika ada */}
-          {suffixText ? (
+          {suffix ? (
             <div style={{ marginTop: 18 }}>
               <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Teks Penutup Setelah Tabel
               </label>
               <div
-                dangerouslySetInnerHTML={{ __html: suffixText }}
+                dangerouslySetInnerHTML={{ __html: suffix }}
                 style={{
                   padding: '10px 14px',
                   background: '#f8fafc',

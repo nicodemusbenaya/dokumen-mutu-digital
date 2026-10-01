@@ -45,3 +45,10 @@ next-env.d.ts
 /public/uploads/signatures/*
 /public/uploads/attachments/*
 !/public/uploads/**/.gitkeep
+
+# storage fisik dokumen (media impor, PDF, signature) — dipasang sebagai volume di QNAP
+/storage/
+
+# artefak laporan import & tooling sekali pakai
+/.import-report/
+

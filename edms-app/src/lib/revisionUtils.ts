@@ -24,6 +24,16 @@ export function formatIndoDate(dateInput?: string | Date | null): string {
 }
 
 /**
+ * Naikkan versi mayor saat pengesahan final: 1.0 → 2.0 → 3.0, dst.
+ * Input tidak valid difallback ke '2.0' (asumsi siklus pertama sudah terbit).
+ */
+export function bumpMajorVersion(v: string | null | undefined): string {
+  const m = String(v || '1.0').match(/^(\d+)\.(\d+)$/);
+  if (!m) return '2.0';
+  return `${parseInt(m[1], 10) + 1}.0`;
+}
+
+/**
  * Membersihkan tag HTML dan entity untuk komparasi teks murni
  */
 export function cleanHtmlText(html?: string | null): string {

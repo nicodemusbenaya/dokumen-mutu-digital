@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs/promises';
-import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel } from '@/lib/documentTypes';
+import { PDFDocument } from 'pdf-lib';
+import { DOCUMENT_SECTIONS, DocumentType, getSectionLabel, getOrderedSections, getDisplaySectionLabel, cleanSectionTitle } from '@/lib/documentTypes';
 import { injectSignaturesIntoFormHtml } from '@/lib/pdf-utils';
 import { getRevisionHistory, renderRevisionTableHtml } from '@/lib/revisionUtils';
 
@@ -92,6 +93,8 @@ export interface PdfDocumentData {
   refs: Array<{ kategori: string; nomor: string; judul: string }>;
   versions?: any[];
   penyusun: string;
+  /** Path URL kop surat hasil ekstrak word/header*.xml (opsional). */
+  kopPath?: string | null;
   mgrApprover: string | null;
   mgrSignature: string | null; // base64 data URL
   pimpinanApprover: string | null;
@@ -122,13 +125,110 @@ async function getLogosBase64(): Promise<{ danantara: string; pln: string; plnVe
   }
 }
 
+// ─── Inline aset lokal → data URL ───────────────────────────────
+// Puppeteer setContent memakai base URL about:blank, sehingga src relatif
+// (/uploads/media/...) tidak akan termuat. Semua gambar lokal di-inline dulu.
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  svg: 'image/svg+xml', webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon',
+};
+
+const IMG_SRC_RE = /(\ssrc\s*=\s*)("[^"]*"|'[^']*')/gi;
+const IMG_SRC_SCAN_RE = /\ssrc\s*=\s*("[^"]*"|'[^']*')/gi;
+
+async function resolveLocalAsset(src: string): Promise<Buffer | null> {
+  if (!src || /^(data:|https?:|blob:|javascript:|\/\/)/i.test(src)) return null;
+  const clean = src.replace(/^[./]+/, '');
+  const rel = clean.replace(/^uploads\//, '');
+  const candidates = [
+    path.join(process.cwd(), 'storage', rel),              // storage/media/001.png
+    path.join(process.cwd(), 'public', clean),             // public/uploads/media/001.png
+    path.join(process.cwd(), 'public', 'uploads', rel),    // fallback
+  ];
+  for (const p of candidates) {
+    try {
+      const buf = await fs.readFile(p);
+      if (buf.length) return buf;
+    } catch { /* coba kandidat berikutnya */ }
+  }
+  return null;
+}
+
+async function inlineLocalImages(html: string): Promise<string> {
+  if (!html || html.indexOf('<img') < 0) return html;
+
+  const wanted = new Set<string>();
+  let m: RegExpExecArray | null;
+  IMG_SRC_SCAN_RE.lastIndex = 0;
+  while ((m = IMG_SRC_SCAN_RE.exec(html)) !== null) {
+    const val = m[1];
+    if (val) wanted.add(val.slice(1, -1));
+  }
+
+  const repl = new Map<string, string>();
+  for (const src of wanted) {
+    const buf = await resolveLocalAsset(src);
+    if (!buf) continue;
+    const ext = path.extname(src.split('?')[0]).replace('.', '').toLowerCase();
+    const mime = MIME_BY_EXT[ext] || 'application/octet-stream';
+    repl.set(src, `data:${mime};base64,${buf.toString('base64')}`);
+  }
+  if (!repl.size) return html;
+
+  return html.replace(IMG_SRC_RE, (whole, attr: string, val: string) => {
+    const sub = repl.get(val.slice(1, -1));
+    return sub ? `${attr}${val[0]}${sub}${val[0]}` : whole;
+  });
+}
+
+// ─── Kop surat asli (dari word/header*.xml) sebagai headerTemplate ──
+
+async function loadKopHeaderTemplate(kopPath?: string | null): Promise<string | null> {
+  if (!kopPath) return null;
+  const clean = kopPath.replace(/^\/+/, '');
+  const candidates = [
+    path.join(process.cwd(), 'storage', clean.replace(/^uploads\//, '')),
+    path.join(process.cwd(), 'public', clean),
+    path.join(process.cwd(), clean),
+  ];
+  for (const p of candidates) {
+    let raw = '';
+    try {
+      raw = await fs.readFile(p, 'utf8');
+    } catch {
+      continue; // kandidat berikutnya
+    }
+    if (!raw || !raw.trim()) continue;
+    try {
+      return buildKopHeaderTemplate(await inlineLocalImages(raw));
+    } catch (err) {
+      console.error(`[PDF] Gagal meng-inline gambar kop ${kopPath}:`, err);
+      return buildKopHeaderTemplate(raw);
+    }
+  }
+  console.warn(`[PDF] Kop surat tidak ditemukan: ${kopPath}`);
+  return null;
+}
+
+function buildKopHeaderTemplate(kopHtml: string): string {
+  return `
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 794px; margin: 0; padding: 0; }
+    .kop-wrap { width: 100%; padding: 0 18mm; font-family: Arial, sans-serif; font-size: 7.5pt; line-height: 1.3; }
+    .kop-wrap table { width: 100% !important; max-width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; }
+    .kop-wrap td, .kop-wrap th { vertical-align: middle; word-break: break-word; }
+    .kop-wrap img { max-height: 40px; max-width: 100%; object-fit: contain; display: block; margin: 0 auto; }
+    .kop-wrap p { margin: 0; }
+    .kop-wrap br { display: block; }
+  </style>
+  <div class="kop-wrap">${kopHtml}</div>`;
+}
+
 // ─── Generate HTML untuk PDF ──────────────────────────────────
 
 const FORMULIR_TYPES = new Set([
-  'Formulir Standar (FR.01.04)',
-  'Berita Acara Pemusnahan (FR.01.05)',
-  'Pernyataan Kerahasiaan (FR.01.06)',
-  'Daftar Rekaman Mutu (FR.01.07)',
   'BA Pemusnahan Rekaman',
   'Pernyataan Kerahasiaan',
   'Daftar Rekaman Mutu',
@@ -180,6 +280,73 @@ function getOfficialHeaderTitles(doc: PdfDocumentData): { category: string; titl
     category: 'FORMULIR',
     title: judul
   };
+}
+
+function getCoverPageTitle(doc: PdfDocumentData): string {
+  const jenis = (doc.jenis || '').trim();
+  if (jenis === 'SOP/Prosedur' || jenis.toLowerCase().includes('prosedur')) return 'DOKUMEN PROSEDUR';
+  if (jenis === 'Instruksi Kerja' || jenis.toLowerCase().includes('instruksi')) return 'INSTRUKSI KERJA';
+  if (jenis === 'Manual Mutu' || jenis.toLowerCase().includes('manual mutu')) return 'MANUAL MUTU';
+  return 'FORMULIR';
+}
+
+function getCoverPageSubtitle(doc: PdfDocumentData): string {
+  const jenis = (doc.jenis || '').trim();
+  if (jenis.includes('FR.01.05') || jenis.includes('Pemusnahan') || jenis.includes('BA Pemusnahan')) return 'PEMUSNAHAN REKAMAN MUTU';
+  if (jenis.includes('FR.01.06') || jenis.includes('Kerahasiaan')) return 'PERNYATAAN KERAHASIAAN';
+  if (jenis.includes('FR.01.07') || jenis.includes('Daftar Rekaman')) return 'DAFTAR REKAMAN MUTU';
+  return (doc.judul || '').trim().toUpperCase() || '';
+}
+
+// ─── Cover Page ─────────────────────────────────────────────────
+
+function buildCoverPage(doc: PdfDocumentData, logos: { danantara: string; pln: string; plnVertical: string }): string {
+  const coverTitle = getCoverPageTitle(doc);
+  const coverSubtitle = getCoverPageSubtitle(doc);
+  const logoSrc = logos.plnVertical || logos.pln || '';
+  const kode = (doc.kode || 'XX.XX.XXX.XXXX.').toUpperCase();
+  const rev = String(doc.versi || '00').padStart(2, '0');
+  const dateStr = new Date(doc.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  return `
+  <div class="cover-page">
+    ${logoSrc ? `<img src="${logoSrc}" class="cover-logo" alt="Logo PLN">` : ''}
+    <div class="cover-title">${coverTitle}</div>
+    ${coverSubtitle ? `<div class="cover-dots">.................................</div><div class="cover-subtitle">${coverSubtitle}</div>` : `<div class="cover-dots">.................................</div>`}
+    <div class="cover-code">${kode}</div>
+    <div class="cover-rev">REV. ${rev}</div>
+    <div class="cover-date">${dateStr}</div>
+    <div class="cover-company">PT PLN (PERSERO)</div>
+    <div class="cover-dept">UNIT PELAKSANA SERTIFIKASI</div>
+    <div class="cover-dots-bottom">.................................</div>
+  </div>`;
+}
+
+// ─── Daftar Isi ─────────────────────────────────────────────────
+
+function buildDaftarIsi(
+  activeSections: Array<{ key: string; title: string }>,
+  hasRefs: boolean
+): string {
+  const items = activeSections.map((sec) => `
+    <div class="toc-item">
+      <span class="toc-text">${sec.title}</span>
+    </div>`
+  ).join('');
+
+  const refItem = hasRefs ? `
+    <div class="toc-item">
+      <span class="toc-text">REFERENSI & STANDAR TERKAIT</span>
+    </div>` : '';
+
+  return `
+  <div class="toc-page">
+    <div class="toc-title-heading">DAFTAR ISI</div>
+    <div class="toc-list">
+      ${items}
+      ${refItem}
+    </div>
+  </div>`;
 }
 
 // ─── Puppeteer headerTemplate (kop surat 3-kolom, di-stamp di setiap halaman) ──
@@ -261,33 +428,123 @@ function buildFooterTemplate(doc: PdfDocumentData): string {
   </div>`;
 }
 
-function buildPdfHtml(doc: PdfDocumentData, logos: { danantara: string; pln: string; plnVertical: string }): string {
+// ─── Shared CSS ─────────────────────────────────────────────────
+
+function buildPdfStyles(): string {
+  return `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1A1A1A; line-height: 1.55; }
+  .page { padding: 0; position: relative; width: 100%; }
+  .doc-section { margin-bottom: 14px; page-break-inside: avoid !important; break-inside: avoid !important; }
+  .section-title, h1, h2, h3, h4, h5, h6 { font-size: 9.5pt; font-weight: 700; color: #0B192C; margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1.5px solid #CBD5E1; text-transform: uppercase; letter-spacing: 0.03em; page-break-after: avoid !important; break-after: avoid !important; }
+  .clause-section { display: grid; grid-template-columns: 4.5cm auto 1fr; column-gap: 8px; align-items: start; margin-bottom: 10px; }
+  .clause-label { line-height: 1.6; padding-left: 1.5em; text-indent: -1.5em; }
+  .clause-colon { line-height: 1.6; }
+  .clause-content { min-width: 0; }
+  .content { font-size: 9.5pt; line-height: 1.6; margin-bottom: 8px; color: #1A1A1A; }
+  .content p { margin-bottom: 6px; text-align: justify; }
+  .content ol { counter-reset: item; list-style: none; padding-left: 0; margin-bottom: 6px; text-align: justify; }
+  .content ol > li { counter-increment: item; position: relative; padding-left: 2.5em; margin-bottom: 4px; text-align: justify; page-break-inside: avoid !important; break-inside: avoid !important; }
+  .content ol > li::before { content: counters(item, ".") ". "; position: absolute; left: 0; top: 0; }
+  .content ul { padding-left: 16px; margin-bottom: 6px; text-align: justify; }
+  .content li { margin-bottom: 4px; page-break-inside: avoid !important; break-inside: avoid !important; }
+  table, .content table { width: 100% !important; border-collapse: collapse !important; margin: 10px 0 14px !important; font-size: 9pt !important; }
+  tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+  table th, .content table th { color: #0F172A !important; font-weight: 400; text-align: left; padding: 6px 8px !important; border: 1px solid #000 !important; vertical-align: middle !important; line-height: 1.35 !important; }
+  table td, .content table td { padding: 6px 8px !important; border: 1px solid #000 !important; vertical-align: top !important; line-height: 1.45 !important; color: #1A1A1A !important; }
+  table[style*="border:none"], table[style*="border: none"] { border: none !important; }
+  table[style*="border:none"] td, table[style*="border: none"] td { border: none !important; }
+  .pengesahan-title, .riwayat-title { font-size: 9.5pt; font-weight: 800; color: #0B192C; margin: 14px 0 5px; letter-spacing: 0.03em; page-break-after: avoid !important; break-after: avoid !important; }
+  .pengesahan-box, .pengesahan-table, .riwayat-table, .refs, .sig-block { page-break-inside: avoid !important; break-inside: avoid !important; }
+  .pengesahan-table td { border: 1px solid #334155 !important; padding: 8px 12px !important; }
+  .riwayat-table th { border: 1px solid #334155 !important; padding: 5px 7px !important; font-size: 8pt !important; }
+  .riwayat-table td { border: 1px solid #475569 !important; padding: 5px 7px !important; font-size: 8pt !important; }
+  .refs ul { padding-left: 16px; font-size: 8.5pt; }
+  .cover-page { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 700px; text-align: center; padding: 40px 30px; }
+  .cover-logo { width: 120px; height: auto; opacity: 1; margin-bottom: 30px; object-fit: contain; }
+  .cover-title { font-size: 18pt; font-weight: 800; color: #0B192C; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .cover-dots { font-size: 9pt; color: #94A3B8; margin-bottom: 16px; letter-spacing: 0.1em; }
+  .cover-subtitle { font-size: 10pt; font-weight: 700; color: #334155; margin-bottom: 20px; text-transform: uppercase; }
+  .cover-code { font-size: 11pt; font-weight: 700; color: #0B192C; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .cover-rev { font-size: 10pt; font-weight: 600; color: #334155; margin-bottom: 4px; letter-spacing: 0.06em; }
+  .cover-date { font-size: 9pt; color: #64748B; margin-bottom: 30px; }
+  .cover-company { font-size: 11pt; font-weight: 800; color: #0B192C; letter-spacing: 0.05em; margin-bottom: 2px; }
+  .cover-dept { font-size: 10pt; font-weight: 700; color: #334155; letter-spacing: 0.04em; margin-bottom: 20px; }
+  .cover-dots-bottom { font-size: 9pt; color: #94A3B8; letter-spacing: 0.1em; }
+  .pengesahan-page { page-break-after: always !important; break-after: always !important; padding: 20px 0; }
+  .pengesahan-page-title { font-size: 12pt; font-weight: 800; color: #0B192C; text-align: center; letter-spacing: 0.06em; margin-bottom: 40px; text-transform: uppercase; }
+  .pengesahan-date { font-size: 9pt; color: #334155; text-align: center; margin-bottom: 50px; }
+  .pengesahan-cols { display: flex; gap: 60px; justify-content: center; padding: 0 60px; }
+  .pengesahan-col { flex: 1; text-align: center; max-width: 280px; }
+  .pengesahan-col-label { font-size: 9pt; font-weight: 700; color: #0B192C; margin-bottom: 4px; text-align: center; }
+  .pengesahan-col-role { font-size: 8pt; color: #64748B; margin-bottom: 20px; text-align: center; }
+  .pengesahan-sig-area { height: 60px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .pengesahan-dotted-line { border-bottom: 1px dashed #94A3B8; margin: 0 10px 6px; }
+  .pengesahan-name { font-size: 9pt; font-weight: 700; color: #0B192C; text-align: center; }
+  .riwayat-page { page-break-after: always !important; break-after: always !important; padding: 20px 0; }
+  .riwayat-page-title { font-size: 11pt; font-weight: 800; color: #0B192C; text-align: center; letter-spacing: 0.06em; margin-bottom: 14px; text-transform: uppercase; }
+  .toc-page { page-break-after: always !important; break-after: always !important; padding: 20px 0; }
+  .toc-title-heading { font-size: 11pt; font-weight: 800; color: #0B192C; text-align: center; letter-spacing: 0.06em; margin-bottom: 20px; text-transform: uppercase; }
+  .toc-list { width: 100%; }
+  .toc-item { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; }
+  .toc-text { flex: 1; font-size: 9.5pt; color: #1A1A1A; }
+</style>`;
+}
+
+// ─── Cover Page HTML (tanpa header/footer) ─────────────────────
+
+function buildCoverHtml(doc: PdfDocumentData, logos: { danantara: string; pln: string; plnVertical: string }): string {
+  const coverTitle = getCoverPageTitle(doc);
+  const coverSubtitle = getCoverPageSubtitle(doc);
+  const logoSrc = logos.plnVertical || logos.pln || '';
+  const kode = (doc.kode || 'XX.XX.XXX.XXXX.').toUpperCase();
+  const rev = String(doc.versi || '00').padStart(2, '0');
+  const dateStr = new Date(doc.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  return `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8">
+<style>${buildPdfStyles()}</style>
+</head><body>
+<div class="page">
+  <div class="cover-page">
+    ${logoSrc ? `<img src="${logoSrc}" class="cover-logo" alt="Logo PLN">` : ''}
+    <div class="cover-title">${coverTitle}</div>
+    <div class="cover-dots">.................................</div>
+    ${coverSubtitle ? `<div class="cover-subtitle">${coverSubtitle}</div>` : ''}
+    <div class="cover-code">${kode}</div>
+    <div class="cover-rev">REV. ${rev}</div>
+    <div class="cover-date">${dateStr}</div>
+    <div class="cover-company">PT PLN (PERSERO)</div>
+    <div class="cover-dept">UNIT PELAKSANA SERTIFIKASI</div>
+    <div class="cover-dots-bottom">.................................</div>
+  </div>
+</div>
+</body></html>`;
+}
+
+// ─── Content Pages HTML (dengan header/footer via Puppeteer) ───
+
+function buildContentHtml(doc: PdfDocumentData): string {
   const isFormulir = FORMULIR_TYPES.has(doc.jenis) || (doc.jenis && doc.jenis.toLowerCase().includes('formulir'));
 
   const formattedDate = new Date(doc.updatedAt).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric'
+    day: '2-digit', month: 'long', year: 'numeric'
   });
 
   const refsHtml = doc.refs.map(r =>
     `<li>[${r.kategori}] ${r.nomor} — ${r.judul}</li>`
   ).join('');
 
-  const sigBlock = (label: string, name: string | null, sigSrc: string | null, title: string) => `
-    <div class="sig-col">
-      <div class="sig-label">${label}</div>
-      <div class="sig-draw">
-        ${sigSrc ? `<img src="${sigSrc}" style="max-height:50px;max-width:140px">` : '<span class="sig-empty">—</span>'}
-      </div>
-      <div class="name-line">
-        <div class="sig-name">${name || '—'}</div>
-        <div class="sig-title">${title}</div>
-      </div>
-    </div>`;
-
   const orderedSections = getOrderedSections(doc.jenis, doc.sections);
-  const activeSections = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
+  const allActive = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
+
+  // Halaman LEMBAR PENGESAHAN / DAFTAR ISI selalu dirender sintesis di atas
+  // (punya slot tanda tangan digital + daftar isi dinamis) — section impor yang
+  // judulnya sama dibuang agar tidak muncul dua kali.
+  const SYNTHESIZED_TITLES = /^(lembar\s+pengesahan|daftar\s+isi)$/i;
+  const RIWAYAT_TITLE = /^riwayat\s+perubahan$/i;
+  const importedRiwayat = allActive.some(sec => RIWAYAT_TITLE.test(cleanSectionTitle(sec.title)));
+  const activeSections = allActive.filter(sec => !SYNTHESIZED_TITLES.test(cleanSectionTitle(sec.title)));
 
   const sigData = {
     mgrSignature: doc.mgrSignature,
@@ -297,210 +554,152 @@ function buildPdfHtml(doc: PdfDocumentData, logos: { danantara: string; pln: str
     penyusun: doc.penyusun
   };
 
-  // Generate riwayat perubahan otomatis / tersinkronisasi
   const revisionRows = getRevisionHistory(doc, doc.versions || []);
   const revisionTableHtml = renderRevisionTableHtml(revisionRows);
 
-  // Keys seksi yang sengaja tidak menampilkan heading h3 (format surat pernyataan / berita acara)
   const SUPPRESS_TITLE_KEYS = new Set([
-    'judul_formulir',
-    'identitas_ba',
-    'identitas_pihak',
-    'pernyataan_komitmen',
-    'konsekuensi_penutup'
+    'judul_formulir', 'identitas_ba', 'identitas_pihak', 'pernyataan_komitmen', 'konsekuensi_penutup'
   ]);
 
-  // Body content
   const bodyHtml = isFormulir
     ? `<div class="form-body-stream">
-        ${activeSections
-      .map((sec, idx) => {
-        const content = injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData);
-        if (SUPPRESS_TITLE_KEYS.has(sec.key)) {
-          return `<div class="content form-block">${content}</div>`;
-        }
-        const label = getDisplaySectionLabel(sec, idx, doc.jenis);
-        return `
-              <div class="doc-section">
-                <h3 class="section-title">${label}</h3>
-                <div class="content">${content}</div>
-              </div>
-            `;
-      })
-      .join('')}
+        ${activeSections.map((sec, idx) => {
+          const content = injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData);
+          if (SUPPRESS_TITLE_KEYS.has(sec.key)) {
+            return `<div class="content form-block">${content}</div>`;
+          }
+          const label = getDisplaySectionLabel(sec, idx, doc.jenis);
+          return `<div class="doc-section"><h3 class="section-title">${label}</h3><div class="content">${content}</div></div>`;
+        }).join('')}
        </div>`
     : `<div class="pdf-body">
-        ${activeSections
-      .map((sec, idx) => {
-        const content = injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData);
-        const label = getDisplaySectionLabel(sec, idx, doc.jenis);
-        return `
-              <div class="doc-section">
-                <h3 class="section-title">${label}</h3>
-                <div class="content">${content}</div>
-              </div>
-            `;
-      }).join('')}
+        ${activeSections.map((sec, idx) => {
+          const content = injectSignaturesIntoFormHtml(doc.sections[sec.key], sigData);
+          const label = getDisplaySectionLabel(sec, idx, doc.jenis);
+          return `<div class="doc-section clause-section"><div class="clause-label">${label}</div><div class="clause-colon">:</div><div class="clause-content content">${content}</div></div>`;
+        }).join('')}
         ${refsHtml ? `<div class="refs"><h3 class="section-title">REFERENSI & STANDAR TERKAIT</h3><ul style="padding-left:16px;font-size:9pt;">${refsHtml}</ul></div>` : ''}
        </div>`;
 
-  // Lembar Pengesahan + Riwayat Perubahan (one-time content, bukan per-page header)
+  const pengesahanLabel = isFormulir ? 'Manager Bidang Terkait' : (doc.jenis === 'Manual Mutu' ? 'Para Manager Bidang' : 'Manager Bidang Terkait');
   const pengesahanHtml = `
-    <div class="pengesahan-box" style="margin: 10px 0 12px;">
-      <div class="pengesahan-title">LEMBAR PENGESAHAN</div>
-      <div style="font-size:8.5pt; color:#64748B; margin-bottom:6px;">Jakarta, ${formattedDate}</div>
-      <table class="pengesahan-table">
-        <tr>
-          <td style="width:50%; text-align:center;">
-            <div style="font-weight:700; font-size:9pt;">Disusun Oleh:</div>
-            <div style="font-size:8pt; color:#64748B; margin-top:2px;">${isFormulir ? 'Manager Bidang Terkait' : (doc.jenis === 'Manual Mutu' ? 'Para Manager Bidang' : 'Manager Bidang Terkait')}</div>
-            <div class="sig-draw">
-              ${doc.mgrSignature ? `<img src="${doc.mgrSignature}" style="max-height:45px;max-width:130px">` : '<span class="sig-empty">—</span>'}
-            </div>
-            <div style="margin-top:4px; font-weight:700; font-size:9pt;">${doc.mgrApprover || '( ..................................... )'}</div>
-          </td>
-          <td style="width:50%; text-align:center;">
-            <div style="font-weight:700; font-size:9pt;">Disahkan Oleh:</div>
-            <div style="font-size:8pt; color:#64748B; margin-top:2px;">Senior Manager UPS</div>
-            <div class="sig-draw">
-              ${doc.pimpinanSignature ? `<img src="${doc.pimpinanSignature}" style="max-height:45px;max-width:130px">` : '<span class="sig-empty">—</span>'}
-            </div>
-            <div style="margin-top:4px; font-weight:700; font-size:9pt;">${doc.pimpinanApprover || '( ..................................... )'}</div>
-          </td>
-        </tr>
-      </table>
-    </div>
-    ${revisionTableHtml}`;
+    <div class="pengesahan-page">
+      <div class="pengesahan-page-title">LEMBAR PENGESAHAN</div>
+      <div class="pengesahan-date">Jakarta, ${formattedDate}</div>
+      <div class="pengesahan-cols">
+        <div class="pengesahan-col">
+          <div class="pengesahan-col-label">Disusun Oleh:</div>
+          <div class="pengesahan-col-role">${pengesahanLabel}</div>
+          <div class="pengesahan-sig-area">${doc.mgrSignature ? `<img src="${doc.mgrSignature}" style="max-height:50px;max-width:140px">` : ''}</div>
+          <div class="pengesahan-dotted-line"></div>
+          <div class="pengesahan-name">${doc.mgrApprover || '( ..................................... )'}</div>
+        </div>
+        <div class="pengesahan-col">
+          <div class="pengesahan-col-label">Disahkan Oleh:</div>
+          <div class="pengesahan-col-role">Senior Manager UPS</div>
+          <div class="pengesahan-sig-area">${doc.pimpinanSignature ? `<img src="${doc.pimpinanSignature}" style="max-height:50px;max-width:140px">` : ''}</div>
+          <div class="pengesahan-dotted-line"></div>
+          <div class="pengesahan-name">${doc.pimpinanApprover || '( ..................................... )'}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // Dokumen impor yang sudah membawa RIWAYAT PERUBAHAN aslinya → pakai miliknya,
+  // jangan ditimpa tabel sintesis (hanya berisi 1 baris hasil import).
+  const riwayatHtml = importedRiwayat ? '' : `
+    <div class="riwayat-page">
+      <div class="riwayat-page-title">RIWAYAT PERUBAHAN</div>
+      ${revisionTableHtml}
+    </div>`;
+
+  const activeSectionLabels = activeSections.map((sec, idx) => ({
+    key: sec.key,
+    title: getDisplaySectionLabel(sec, idx, doc.jenis),
+  }));
+  const daftarIsiHtml = buildDaftarIsi(activeSectionLabels, !!refsHtml);
 
   return `<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1A1A1A; line-height: 1.55; opacity: 1; }
-  .page { padding: 0; position: relative; width: 100%; opacity: 1; }
-  
-  /* Kop Formulir — sekarang di headerTemplate, tidak perlu di body */
-  
-  /* Section & Clause Styling: Anti-terpotong di tengah halaman */
-  .doc-section {
-    margin-bottom: 14px;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-  .section-title, h1, h2, h3, h4, h5, h6 {
-    font-size: 9.5pt;
-    font-weight: 700;
-    color: #0B192C;
-    margin: 12px 0 6px;
-    padding-bottom: 3px;
-    border-bottom: 1.5px solid #CBD5E1;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    page-break-after: avoid !important;
-    break-after: avoid !important;
-  }
-  
-  /* Content formatting */
-  .content { font-size: 9.5pt; line-height: 1.6; margin-bottom: 8px; color: #1A1A1A; }
-  .content p { margin-bottom: 6px; text-align: justify; }
-  .content ol, .content ul { padding-left: 20px; margin-bottom: 6px; text-align: justify; }
-  .content li { margin-bottom: 4px; page-break-inside: avoid !important; break-inside: avoid !important; }
-  
-  /* Table styling resmi: lapang, rapi, berpadding proporsional */
-  table, .content table { width: 100% !important; border-collapse: collapse !important; margin: 10px 0 14px !important; font-size: 9pt !important; }
-  tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-  table th, .content table th { background-color: #F1F5F9 !important; color: #0F172A !important; font-weight: 700 !important; text-align: center !important; padding: 6px 8px !important; border: 1px solid #000 !important; vertical-align: middle !important; line-height: 1.35 !important; }
-  table td, .content table td { padding: 6px 8px !important; border: 1px solid #000 !important; vertical-align: top !important; line-height: 1.45 !important; color: #1A1A1A !important; }
-  
-  /* Helper borderless table untuk form isian data / tanda tangan */
-  table[style*="border:none"], table[style*="border: none"] { border: none !important; }
-  table[style*="border:none"] td, table[style*="border: none"] td { border: none !important; }
-  
-  /* Lembar Pengesahan & Riwayat & Referensi */
-  .pengesahan-title, .riwayat-title { font-size: 9.5pt; font-weight: 800; color: #0B192C; margin: 14px 0 5px; letter-spacing: 0.03em; page-break-after: avoid !important; break-after: avoid !important; }
-  .pengesahan-box, .pengesahan-table, .riwayat-table, .refs, .sig-block {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-  .pengesahan-table td { border: 1px solid #334155 !important; padding: 8px 12px !important; }
-  .riwayat-table th { background-color: #F1F5F9 !important; border: 1px solid #334155 !important; padding: 5px 7px !important; font-size: 8pt !important; }
-  .riwayat-table td { border: 1px solid #475569 !important; padding: 5px 7px !important; font-size: 8pt !important; }
-
-  .refs ul { padding-left: 16px; font-size: 8.5pt; }
-  .sig-block { display: flex; gap: 16px; margin-top: 24px; border-top: 1.5px solid #0B192C; padding-top: 12px; }
-  .sig-col { flex: 1; text-align: center; }
-  .sig-label { font-size: 8pt; color: #64748B; margin-bottom: 5px; font-weight: 700; }
-  .sig-draw { height: 44px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px; }
-  .sig-empty { color: #CBD5E1; font-size: 16pt; }
-  .name-line { border-top: 1px solid #CBD5E1; padding-top: 4px; margin-top: 4px; }
-  .sig-name { font-weight: 700; font-size: 8.5pt; color: #0B192C; }
-  .sig-title { font-size: 7.5pt; color: #64748B; }
-  .qr-block { flex: 0.6; }
-  .qr-img { width: 40px; height: 40px; background: repeating-conic-gradient(#DDD 0% 25%, #fff 0% 50%) 0 0 / 5px 5px; margin: 4px auto; border: 1px solid #CBD5E1; }
-  .qr-note { font-size: 6.5pt; color: #94A3B8; text-align: center; }
-</style>
-</head>
-<body>
+<html lang="id"><head><meta charset="UTF-8">
+<style>${buildPdfStyles()}</style>
+</head><body>
 <div class="page">
   ${pengesahanHtml}
+  ${riwayatHtml}
+  ${daftarIsiHtml}
   ${bodyHtml}
-  ${isFormulir && refsHtml ? `<div class="refs"><h3 class="section-title">REFERENSI DOKUMEN</h3><ul>${refsHtml}</ul></div>` : ''}
-  ${!isFormulir ? `
-  <div class="sig-block">
-    ${sigBlock('Disiapkan oleh', doc.penyusun, null, 'Penyusun Dokumen')}
-    ${sigBlock('Menyetujui', doc.mgrApprover, doc.mgrSignature, 'Manager Bidang')}
-    ${sigBlock('Mengesahkan', doc.pimpinanApprover, doc.pimpinanSignature, 'Pimpinan Unit')}
-    <div class="sig-col qr-block">
-      <div class="sig-label">Verifikasi Keabsahan</div>
-      <div class="qr-img"></div>
-      <div class="qr-note">${doc.kode} · v${doc.versi}</div>
-    </div>
-  </div>` : ''}
 </div>
-</body>
-</html>`;
+</body></html>`;
 }
 
 // ─── Main: Generate PDF file ──────────────────────────────────
 
 export async function generatePdf(
-  doc: PdfDocumentData,
-  documentId: number
+  doc: PdfDocumentData
 ): Promise<string> {
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'pdf');
-  // Bersihkan karakter ilegal filesystem (terutama Windows: <>:"/\|?*)
+  const uploadDir = path.join(process.cwd(), 'storage', 'pdf');
   const safeKode = (doc.kode || 'DOC').replace(/[^a-zA-Z0-9._-]/g, '_');
   const safeVersi = String(doc.versi || '1.0').replace(/[^a-zA-Z0-9._-]/g, '_');
   const fileName = `${safeKode}_v${safeVersi}_${Date.now()}.pdf`;
   const filePath = path.join(uploadDir, fileName);
+  await fs.mkdir(uploadDir, { recursive: true });
 
   const logos = await getLogosBase64();
-  const html = buildPdfHtml(doc, logos);
-  const headerTemplate = buildHeaderTemplate(doc, logos);
-  const footerTemplate = buildFooterTemplate(doc);
+
+  // Kop surat asli dari word/header*.xml (jika diimpor) → headerTemplate.
+  const kopTemplate = await loadKopHeaderTemplate(doc.kopPath);
+
+  // Inline gambar lokal (attachments hasil import) agar termuat di Puppeteer.
+  const coverHtml = await inlineLocalImages(buildCoverHtml(doc, logos));
+  const contentHtml = await inlineLocalImages(buildContentHtml(doc));
+
   const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.waitForFunction(() => {
+
+  const waitForImages = (pg: Awaited<ReturnType<typeof browser.newPage>>) =>
+    pg.waitForFunction(() => {
       const imgs = document.querySelectorAll('img');
       return Array.from(imgs).every(img => img.complete && img.naturalHeight !== 0);
-    }, { timeout: 10000 }).catch(() => {});
-    await page.pdf({
-      path: filePath,
-      format: 'A4',
-      printBackground: true,
-      displayHeaderFooter: true,
-      margin: { top: '30mm', right: '18mm', bottom: '24mm', left: '18mm' },
-      headerTemplate,
-      footerTemplate,
-    });
-  } finally {
-    await page.close();
-  }
+    }, { timeout: 8000 }).catch(() => {});
 
-  // Return URL path (relative to /public)
+  // ── Pass 1 & 2 berjalan paralel ──
+  const [coverPdfBytes, contentPdfBytes] = await Promise.all([
+    (async () => {
+      const pg = await browser.newPage();
+      try {
+        const html = coverHtml;
+        await pg.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await waitForImages(pg);
+        return await pg.pdf({
+          format: 'A4', printBackground: true, displayHeaderFooter: false,
+          margin: { top: '16mm', right: '18mm', bottom: '16mm', left: '18mm' },
+        });
+      } finally { await pg.close(); }
+    })(),
+    (async () => {
+      const pg = await browser.newPage();
+      try {
+        const html = contentHtml;
+        await pg.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await waitForImages(pg);
+        return await pg.pdf({
+          format: 'A4', printBackground: true, displayHeaderFooter: true,
+          // Kop asli lebih tinggi dari kop generik → beri ruang header ekstra.
+          margin: { top: kopTemplate ? '40mm' : '30mm', right: '18mm', bottom: '24mm', left: '18mm' },
+          headerTemplate: kopTemplate ?? buildHeaderTemplate(doc, logos),
+          footerTemplate: buildFooterTemplate(doc),
+        });
+      } finally { await pg.close(); }
+    })(),
+  ]);
+
+  // ── Merge ──
+  const mergedPdf = await PDFDocument.create();
+  const coverDoc = await PDFDocument.load(coverPdfBytes);
+  const contentDoc = await PDFDocument.load(contentPdfBytes);
+  const coverPages = await mergedPdf.copyPages(coverDoc, coverDoc.getPageIndices());
+  for (const pg of coverPages) mergedPdf.addPage(pg);
+  const contentPages = await mergedPdf.copyPages(contentDoc, contentDoc.getPageIndices());
+  for (const pg of contentPages) mergedPdf.addPage(pg);
+  await fs.writeFile(filePath, Buffer.from(await mergedPdf.save()));
+
   return `/uploads/pdf/${fileName}`;
 }

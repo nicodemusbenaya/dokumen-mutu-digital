@@ -26,7 +26,8 @@ services:
       - CHROMIUM_PATH=/usr/bin/chromium-browser
     volumes:
       - /share/Container/edms-app:/app
-      - /share/Container/edms-app/storage:/app/storage
+      # Storage persisten terpisah (PDF, lampiran, tanda tangan) — tidak ikut hilang saat update app (Sesuai Bab 9.5 Spesifikasi)
+      - /share/Container/edms-data:/app/storage
     # Install Chromium + fix symlink Turbopack saat startup
     command: >
       sh -c "

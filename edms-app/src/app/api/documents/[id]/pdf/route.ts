@@ -5,6 +5,7 @@ import { getSessionFromRequest, unauthorized } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { addAuditLog } from '@/lib/audit';
 import { generatePdf, PdfDocumentData } from '@/lib/pdf';
+import { findCycleApproval } from '@/lib/approvalCycle';
 
 // POST /api/documents/[id]/pdf
 // Generate PDF dan kembalikan URL file
@@ -34,8 +35,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     query<any[]>(
       `SELECT a.*, u.full_name AS actor_name
        FROM approvals a JOIN users u ON u.id = a.actor_id
-       WHERE a.document_id = ? AND a.action = 'Approve'
-       ORDER BY a.stage`, [docId]
+       WHERE a.document_id = ?
+       ORDER BY a.id`, [docId]
     ),
     query<any[]>(
       'SELECT * FROM document_versions WHERE document_id = ? ORDER BY id ASC', [docId]
@@ -48,48 +49,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const sectionsMap: Record<string, string> = {};
   sections.forEach((s: any) => { sectionsMap[s.section_key] = s.content; });
 
-  const mgrApproval     = approvals.find((a: any) => a.stage === 2);
-  const pimpinanApproval= approvals.find((a: any) => a.stage === 3);
+  // Pilih approval milik siklus berjalan (baris terbaru setelah pengesahan final /
+  // reject terakhir) — bukan approval sintetis hasil import atau siklus lama.
+  const mgrApproval     = findCycleApproval(approvals, 2, doc.status);
+  const pimpinanApproval= findCycleApproval(approvals, 3, doc.status);
 
-  // Build base URL for signature images (use localhost for Puppeteer inside container)
-  const baseUrl = 'http://localhost:3000';
-
-  // Muat gambar tanda tangan ke base64 agar zero latency dan offline-safe di Puppeteer
-  let mgrSignatureDataUrl: string | null = null;
-  if (mgrApproval?.signature_path) {
-    try {
-      const cleanPath = mgrApproval.signature_path.replace(/^\//, '');
-      const filePath = path.join(process.cwd(), 'public', cleanPath);
-      const fileBuf = await fs.readFile(filePath);
-      if (fileBuf.length > 200) {
-        mgrSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
-      } else {
-        console.warn(`[PDF] Signature file too small (${fileBuf.length} bytes), using HTTP fallback: ${filePath}`);
-        mgrSignatureDataUrl = `${baseUrl}${mgrApproval.signature_path}`;
-      }
-    } catch (e) {
-      console.error(`[PDF] Failed to read signature file:`, e);
-      mgrSignatureDataUrl = `${baseUrl}${mgrApproval.signature_path}`;
+  // Muat gambar tanda tangan ke base64 agar zero latency dan offline-safe di Puppeteer.
+  // Cek storage/ (persisten via volume) dulu, lalu public/uploads (legacy). Jika tidak
+  // ada → null (tanpa fallback HTTP localhost yang menyebabkan stall 8 detik).
+  const loadSignatureDataUrl = async (sigPath: string | null): Promise<string | null> => {
+    if (!sigPath) return null;
+    const clean = sigPath.replace(/^\//, ''); // uploads/signatures/x.png
+    const candidates = [
+      path.join(process.cwd(), 'storage', clean.replace(/^uploads\//, '')), // storage/signatures/x.png
+      path.join(process.cwd(), 'public', clean),                            // public/uploads/signatures/x.png (legacy)
+    ];
+    for (const p of candidates) {
+      try {
+        const buf = await fs.readFile(p);
+        if (buf.length > 200) return `data:image/png;base64,${buf.toString('base64')}`;
+      } catch { /* coba kandidat berikutnya */ }
     }
-  }
+    console.warn(`[PDF] Signature file tidak ditemukan/terlalu kecil: ${sigPath}`);
+    return null;
+  };
 
-  let pimpinanSignatureDataUrl: string | null = null;
-  if (pimpinanApproval?.signature_path) {
-    try {
-      const cleanPath = pimpinanApproval.signature_path.replace(/^\//, '');
-      const filePath = path.join(process.cwd(), 'public', cleanPath);
-      const fileBuf = await fs.readFile(filePath);
-      if (fileBuf.length > 200) {
-        pimpinanSignatureDataUrl = `data:image/png;base64,${fileBuf.toString('base64')}`;
-      } else {
-        console.warn(`[PDF] Signature file too small (${fileBuf.length} bytes), using HTTP fallback: ${filePath}`);
-        pimpinanSignatureDataUrl = `${baseUrl}${pimpinanApproval.signature_path}`;
-      }
-    } catch (e) {
-      console.error(`[PDF] Failed to read signature file:`, e);
-      pimpinanSignatureDataUrl = `${baseUrl}${pimpinanApproval.signature_path}`;
-    }
-  }
+  const mgrSignatureDataUrl      = await loadSignatureDataUrl(mgrApproval?.signature_path ?? null);
+  const pimpinanSignatureDataUrl = await loadSignatureDataUrl(pimpinanApproval?.signature_path ?? null);
 
   const pdfData: PdfDocumentData = {
     kode:     doc.kode,
@@ -98,6 +84,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     bidang:   doc.bidang,
     versi:    doc.current_version,
     status:   doc.status,
+    kopPath:  doc.kop_path ?? null,
     createdAt:doc.created_at,
     updatedAt:doc.updated_at,
     sections: sectionsMap,
@@ -111,7 +98,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   };
 
   try {
-    const pdfUrl = await generatePdf(pdfData, docId);
+    const pdfUrl = await generatePdf(pdfData);
 
     await addAuditLog(user, 'GENERATE', {
       documentId: docId,

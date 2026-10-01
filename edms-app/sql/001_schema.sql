@@ -60,11 +60,23 @@ CREATE TABLE IF NOT EXISTS `documents` (
   `version_number`   INT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'Optimistic locking counter',
   `penyusun_id`      INT UNSIGNED NOT NULL,
   `audit_ref`        VARCHAR(120),
+  `parent_prosedur_id` INT UNSIGNED NULL
+                      COMMENT 'FK self → prosedur induk (dihiraukan untuk dokumen level atas)',
+  `kop_path`         VARCHAR(255) NULL
+                      COMMENT 'Aset kop surat hasil ekstrak word/header*.xml (storage/media/{id}/kop.html)',
+  `source_path`      VARCHAR(255) NULL
+                      COMMENT 'Berkas asli hasil import, relatif terhadap storage/ (mis. attachments/12/form.docx)',
+  `source_name`      VARCHAR(255) NULL
+                      COMMENT 'Nama berkas asli saat diunggah',
+  `source_ext`       VARCHAR(10) NULL
+                      COMMENT 'Ekstensi berkas asli: docx | xlsx | pdf | doc',
   `ack_total`        INT UNSIGNED NOT NULL DEFAULT 0,
   `ack_done`         INT UNSIGNED NOT NULL DEFAULT 0,
   `created_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`penyusun_id`) REFERENCES `users`(`id`)
+  FOREIGN KEY (`penyusun_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`parent_prosedur_id`) REFERENCES `documents`(`id`) ON DELETE SET NULL,
+  INDEX `idx_documents_parent` (`parent_prosedur_id`)
 ) ENGINE=InnoDB;
 
 -- ─── DOCUMENT VERSIONS (arsip versi lama) ────────────────────
