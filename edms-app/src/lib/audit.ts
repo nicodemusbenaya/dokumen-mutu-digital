@@ -12,7 +12,7 @@ export type ActionType =
   | 'REVIEW' | 'APPROVE' | 'REJECT'
   | 'PUBLISH'
   | 'GENERATE'
-  | 'UPDATE';
+  | 'UPDATE' | 'DELETE';
 
 export async function addAuditLog(
   user: SessionUser | { id: number; fullName: string },

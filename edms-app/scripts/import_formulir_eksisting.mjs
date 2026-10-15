@@ -31,17 +31,17 @@ const DO_PARSE = WRITE || argv.includes('--parse');
 const NO_BUILD = argv.includes('--no-build');
 
 const SOURCE_ROOT = process.env.SOURCE_ROOT
-  || path.join(path.dirname(appRoot), 'Formulir Eksisting');
+  || path.join(path.dirname(appRoot), 'Dokumen Final', 'Dokumen Mutu Final (Pengesahan)_');
 const MEDIA_ROOT = path.join(appRoot, 'storage', 'media');
 const REPORT_DIR = path.join(appRoot, '.import-report');
 const BUILD_DIR = path.join(__dirname, '.parser-build');
 
 const PENYUSUN_ID = 5;            // admin / Administrator
-const MANAJER_ID = 3;             // riko / Manager Bidang
-const PIMPINAN_ID = 4;            // budi / Pimpinan Unit
 const UPSERT_KODE = 'MAN.MUTU.UPS.2025.00';
 
 const ALLOW_EXT = new Set(['.docx', '.pdf', '.xlsx', '.xls', '.doc', '.csv', '.rtf', '.odt']);
+// Salinan PDF dari folder formulir diabaikan — sumber teksnya adalah berkas Word.
+const SKIP_DIR = /Formulir Versi PDF/i;
 const JENIS_ENUM = new Set([
   'SOP/Prosedur', 'Manual Mutu', 'Instruksi Kerja', 'Formulir Kerja',
   'Formulir Tambahan', 'BA Pemusnahan Rekaman', 'Pernyataan Kerahasiaan', 'Daftar Rekaman Mutu',
@@ -81,21 +81,43 @@ function buildParser() {
   );
 }
 
-function bidangOf(topFolder) {
-  if (/^0\.\s*MM/.test(topFolder) || /^1\.\s*BMK/.test(topFolder)) return 'Manajemen Mutu';
-  if (/^2\.\s*BMA/.test(topFolder)) return 'Pengembangan Materi';
-  if (/^3\.\s*BST/.test(topFolder)) return 'Pelayanan Sertifikasi';
-  return 'Manajemen Mutu';
+// Folder bidang dikenali pada SEMUA level (sumber impor bisa bersarang,
+// mis. "Dokumen Mutu Final (Pengesahan)_\1. BMK - …\…"), bukan hanya level pertama.
+function bidangFolderOf(relParts) {
+  for (const p of relParts) {
+    if (/^0\.\s*MM/.test(p)) return 'MM';
+    if (/^1\.\s*BMK/.test(p)) return 'BMK';
+    if (/^2\.\s*BMA/.test(p)) return 'BMA';
+    if (/^3\.\s*BST/.test(p)) return 'BST';
+  }
+  return '';
+}
+
+function bidangOf(relParts) {
+  switch (bidangFolderOf(relParts)) {
+    case 'BMA': return 'Pengembangan Materi';
+    case 'BST': return 'Pelayanan Sertifikasi';
+    default: return 'Manajemen Mutu';   // MM & BMK
+  }
 }
 
 function extOf(f) { return path.extname(f).toLowerCase(); }
 function extKey(f) { return extOf(f).replace('.', ''); }
+
+// Versi dari penanda revisi di nama berkas: "…REV.02 …" / "…REV1 …" → 2.0 / 1.0
+function versionOf(fileName) {
+  const stem = fileName.replace(/\.[a-z0-9]+(?:\.[a-z0-9]+)?$/i, '');
+  const m = stem.match(/REV[\s._-]*(\d{1,2})/i);
+  const n = Math.min(99, Math.max(1, m ? parseInt(m[1], 10) : 1));
+  return { number: n, text: `${n}.0` };
+}
 
 // ─── 1. susun rencana import ──────────────────────────────────────
 
 function buildPlan() {
   const files = walk(SOURCE_ROOT)
     .filter(f => ALLOW_EXT.has(extOf(f)))
+    .filter(f => !SKIP_DIR.test(path.relative(SOURCE_ROOT, f)))
     .sort((a, b) => path.relative(SOURCE_ROOT, a).localeCompare(path.relative(SOURCE_ROOT, b)));
 
   const items = files.map(f => {
@@ -110,11 +132,14 @@ function buildPlan() {
       baseKode: meta.kode,
       judul: meta.judul || path.basename(f, extOf(f)),
       rawBase: meta.base,
-      prFolder: parts.find(p => /^PR\./i.test(p)) || '',
+      bidangFolder: bidangFolderOf(parts),
+      prFolder: parts.find(p => /^\d+\.\s*PR\./i.test(p) || /^PR\./i.test(p)) || '',
       parentDir: path.dirname(rel),
       kode: '',
-      bidang: bidangOf(parts[0] || ''),
+      bidang: bidangOf(parts),
       jenis: '',
+      version: versionOf(path.basename(f)),
+      skip: '',
       mode: 'create',
       status: 'planned',
       warnings: [],
@@ -124,7 +149,7 @@ function buildPlan() {
   });
 
   // ── 1a. kode generik untuk berkas tanpa kode ──
-  const lampiran = items.filter(i => !i.baseKode && /^0\.\s*MM/.test(i.top) && /lampiran/i.test(i.parentDir));
+  const lampiran = items.filter(i => !i.baseKode && i.bidangFolder === 'MM' && /lampiran/i.test(i.parentDir));
   lampiran.sort((a, b) => {
     const na = parseInt((a.rawBase.match(/lampiran\s+(\d+)/i) || [])[1] || '999', 10);
     const nb = parseInt((b.rawBase.match(/lampiran\s+(\d+)/i) || [])[1] || '999', 10);
@@ -138,12 +163,12 @@ function buildPlan() {
 
   for (const i of items) {
     if (i.baseKode) i.kode = i.baseKode;
-    else if (/^manual\s+mutu/i.test(i.rawBase)) i.kode = UPSERT_KODE;
+    else if (/^(?:manual\s+mutu|dokumen\s+mutu\s+smt)/i.test(i.rawBase)) i.kode = UPSERT_KODE;
     else if (!i.kode) i.kode = `DOC.UPS.${String(items.indexOf(i) + 1).padStart(3, '0')}-00`;
     i.kode = i.kode.slice(0, 80);
   }
 
-  // ── 1b. tabrakan dalam set impor → suffix .{EXT} (docx menang) ──
+  // ── 1b. tabrakan kode dalam set impor → pakai satu, sisanya dilewati ──
   const rank = e => (e === 'docx' ? 0 : e === 'pdf' ? 1 : 2);
   const byKode = new Map();
   for (const i of items) {
@@ -154,13 +179,14 @@ function buildPlan() {
     if (group.length < 2) continue;
     group.sort((a, b) => rank(a.ext) - rank(b.ext));
     for (const dup of group.slice(1)) {
-      dup.warnings.push(`Kode duplikat "${kode}" → menjadi "${kode}.${dup.ext.toUpperCase()}"`);
-      dup.kode = `${kode}.${dup.ext.toUpperCase()}`.slice(0, 80);
+      dup.skip = `Kode "${kode}" juga dipakai oleh ${group[0].rel} — dilewati agar tidak ganda.`;
+      dup.warnings.push(dup.skip);
     }
   }
 
   // ── 1c. deteksi jenis + induk ──
   for (const i of items) {
+    if (i.skip) continue;
     i.jenis = P.detectType({ fileName: path.basename(i.file), relPath: i.rel, kode: i.kode, judul: i.judul });
     if (!JENIS_ENUM.has(i.jenis)) i.jenis = 'Formulir Kerja';
     i.sourceType = ['docx', 'pdf'].includes(i.ext) ? i.ext
@@ -170,13 +196,14 @@ function buildPlan() {
   // Induk: folder PR.* yang memuat berkas prosedur (PR.*) sebagai anak langsung.
   const prChildren = new Map(); // folderRel -> kode prosedur
   for (const i of items) {
-    if (!/^PR\./i.test(i.baseKode)) continue;
+    if (i.skip || !/^PR\./i.test(i.baseKode)) continue;
     const folder = i.parentDir;
     if (!prChildren.has(folder) || i.ext === 'docx') prChildren.set(folder, i.kode);
   }
   for (const i of items) {
+    if (i.skip) { i.parentKode = ''; continue; }
     const parts = i.rel.split(path.sep);
-    const idx = parts.findIndex(p => /^PR\./i.test(p));
+    const idx = parts.findIndex(p => /^\d+\.\s*PR\./i.test(p) || /^PR\./i.test(p));
     if (idx < 0) { i.parentKode = ''; continue; }
     const folderRel = parts.slice(0, idx + 1).join(path.sep);
     if (folderRel === i.parentDir) { i.parentKode = ''; continue; } // prosedur itu sendiri
@@ -237,7 +264,9 @@ async function main() {
     try {
       let parsed = null;
 
-      if (DO_PARSE) {
+      if (i.skip) {
+        row.status = 'skipped';
+      } else if (DO_PARSE) {
         const buf = fs.readFileSync(i.file);
         const ctx = { fileName: path.basename(i.file), relPath: i.rel };
         if (i.ext === 'docx') parsed = await P.parseDocxBuffer(buf, ctx);
@@ -260,12 +289,14 @@ async function main() {
         }
       }
 
-      if (WRITE) {
-        const res = await persist(conn, i, parsed, row);
-        row.status = res.status;
-        row.documentId = res.documentId;
-      } else {
-        row.status = i.mode === 'update' ? 'would-update' : 'would-create';
+      if (row.status !== 'skipped') {
+        if (WRITE) {
+          const res = await persist(conn, i, parsed, row);
+          row.status = res.status;
+          row.documentId = res.documentId;
+        } else {
+          row.status = i.mode === 'update' ? 'would-update' : 'would-create';
+        }
       }
     } catch (err) {
       row.status = 'failed';
@@ -338,27 +369,20 @@ async function persist(conn, item, parsed, row) {
       await conn.query('UPDATE documents SET updated_at = ? WHERE id = ?', [now, documentId]);
       status = 'updated';
     } else {
+      const ver = item.version || { number: 1, text: '1.0' };
       const [res] = await conn.query(
         `INSERT INTO documents
            (kode, judul, bidang, jenis, siklus_review, status,
             current_version, version_number, penyusun_id, audit_ref,
             parent_prosedur_id, ack_total, ack_done, created_at, updated_at)
-         VALUES (?, ?, ?, ?, '2 tahun', 'Aktif', '1.0', 1, ?, NULL, NULL, 0, 0, ?, ?)`,
-        [item.kode, (row.judul || item.kode).slice(0, 500), item.bidang, item.jenis, PENYUSUN_ID, now, now]
+         VALUES (?, ?, ?, ?, '2 tahun', 'Aktif', ?, ?, ?, NULL, NULL, 0, 0, ?, ?)`,
+        [item.kode, (row.judul || item.kode).slice(0, 500), item.bidang, item.jenis,
+          ver.text, ver.number, PENYUSUN_ID, now, now]
       );
       documentId = res.insertId;
       status = 'created';
-
-      await conn.query(
-        `INSERT INTO approvals (document_id, stage, action, actor_id, note, doc_version, created_at)
-         VALUES (?, 2, 'Approve', ?, 'Disetujui oleh Manager Bidang.', '1.0', ?)`,
-        [documentId, MANAJER_ID, now]
-      );
-      await conn.query(
-        `INSERT INTO approvals (document_id, stage, action, actor_id, note, doc_version, created_at)
-         VALUES (?, 3, 'Approve', ?, 'Disahkan oleh Senior Manager UPS.', '1.0', ?)`,
-        [documentId, PIMPINAN_ID, now]
-      );
+      // Tidak ada baris approvals: dokumen hasil impor lahir Aktif tanpa riwayat
+      // tanda tangan (keputusan: siklus approval lama tidak dipalsukan).
     }
 
     row.documentId = documentId;

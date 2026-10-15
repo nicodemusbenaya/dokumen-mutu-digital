@@ -17,6 +17,7 @@ import {
   IconReferences,
   IconAudit,
   IconLogout,
+  IconDownload,
 } from '@/components/icons/Icons';
 
 interface NavItem {
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',  icon: IconDashboard,  label: 'Dashboard' },
   { href: '/documents',  icon: IconDocuments,  label: 'Daftar Dokumen' },
   { href: '/templates',  icon: IconTemplate,   label: 'Template Dokumen', perm: 'document:create' },
+  { href: '/import',     icon: IconDownload,   label: 'Impor Massal', perm: 'document:create' },
   { href: '/editor',     icon: IconEditor,     label: 'Editor Dokumen' },
   { href: '/approval',   icon: IconApproval,   label: 'Approval Mutu', badgeKey: 'approval', roles: ['Tim Mutu', 'Manager Bidang', 'Pimpinan Unit', 'Admin Sistem'] },
   { href: '/pdf',        icon: IconPdf,        label: 'Lihat & Cetak PDF' },

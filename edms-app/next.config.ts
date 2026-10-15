@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['puppeteer', 'puppeteer-core', '@sparticuz/chromium-min', 'mysql2', 'bcryptjs'],
+  serverExternalPackages: ['puppeteer', 'puppeteer-core', '@sparticuz/chromium-min', 'mysql2', 'bcryptjs',
+    'pdf-parse', 'pdfjs-dist', '@napi-rs/canvas'],
   images: {
     unoptimized: true,  // Nonaktifkan image optimizer — tidak diperlukan untuk deployment internal NAS
     remotePatterns: [

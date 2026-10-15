@@ -1325,14 +1325,26 @@ export function parseFileName(fileName: string): { kode: string; judul: string; 
   const mDup = base.match(/\.(docx|doc|xlsx|pdf)$/i);
   if (mDup) base = base.slice(0, -mDup[0].length);
 
-  let kode = '';
-  const mKode = base.match(/^([A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+-\d{2})(?=\s|$)/);
-  if (mKode) {
-    kode = mKode[1];
-    base = base.slice(mKode[1].length).trim();
-  }
+  // stempel tanggal di depan, mis. "(13_1_26) FR.UPS.SER3.BMK.02.01-00 …"
+  base = base.replace(/^\(\d{1,4}[_-]\d{1,4}[_-]\d{1,4}\)\s*/, '');
+
+  // Kode diikuti penanda revisi menyambung ("…-01.REV.01 JUDUL") masih dianggap kode.
+  const mKode = base.match(
+    /^([A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+-\d{2})(?:\.REV[\s.]*\d{1,2})?(?=\s|$)/i,
+  );
+  const kode = mKode ? normalizeKode(mKode[1]) : '';
+  if (mKode) base = base.slice(mKode[0].length).trim();
 
   return { kode, judul: cleanJudul(base), ext, base };
+}
+
+/**
+ * Menyisipkan titik yang hilang antara segmen huruf dan nomor sebelum suffix "-NN",
+ * mis. "PR.UPS.SER3.BMK03-02" → "PR.UPS.SER3.BMK.03-02".
+ * Pada kode yang sudah benar ("…SER3.BST.04-01", "…BST.01.01A-00") tidak ada perubahan.
+ */
+export function normalizeKode(kode: string): string {
+  return kode.replace(/([A-Za-z])(\d{2})(-\d{2})$/, '$1.$2$3');
 }
 
 export function cleanJudul(raw: string): string {
@@ -1350,6 +1362,8 @@ export function cleanJudul(raw: string): string {
   let guard = 0;
   do {
     prev = out;
+    // penanda revisi di DEPAN judul, mis. "REV. 02 INFORMASI TERDOKUMENTASI"
+    out = out.replace(/^RE-?V(?:ISI)?(?=[\s.\-–—(]|$)[\s.\-–—0-9()]*\s*/i, '').trim();
     for (const p of patterns) out = out.replace(p, '').trim();
     guard++;
   } while (out !== prev && guard < 8);
@@ -1365,12 +1379,18 @@ export function detectType(ctx: ParseContext & { kode?: string; judul?: string }
   if (kode.startsWith('PR.')) return 'SOP/Prosedur';
   if (kode.startsWith('IK.')) return 'Instruksi Kerja';
   if (name.startsWith('lampiran') || /(^|[\\/])lampiran([\\/]|$)/.test(rel)) return 'Formulir Tambahan';
+  if (/^MAN\.MUTU\./.test(kode) && !/\.LAMP\./.test(kode)) return 'Manual Mutu';
+  // Sinyal judul didahulukan: nomor baku 01.05 dipakai lintas bidang dengan
+  // arti berbeda (BMK.01.05 = Pernyataan Kerahasiaan, bukan BA Pemusnahan).
+  if (name.includes('berita acara pemusnahan')) return 'BA Pemusnahan Rekaman';
+  if (name.includes('pernyataan kerahasiaan')) return 'Pernyataan Kerahasiaan';
+  if (name.includes('daftar rekaman mutu')) return 'Daftar Rekaman Mutu';
   // Kode baku 01.05/01.06/01.07 hanya di jalur FR.UPS.SER3.* (kode lain seperti
   // FR.UPS.PBR3.BST.01.06-00 adalah formulir biasa yang kebetulan punya nomor sama).
   const bakuForm = /^FR\.UPS\.SER3\.[A-Z]{3}\.01\.0[567]-\d{2}$/.test(kode);
-  if ((bakuForm && /\.01\.05-\d{2}$/.test(kode)) || name.includes('berita acara pemusnahan')) return 'BA Pemusnahan Rekaman';
-  if ((bakuForm && /\.01\.06-\d{2}$/.test(kode)) || name.includes('pernyataan kerahasiaan')) return 'Pernyataan Kerahasiaan';
-  if ((bakuForm && /\.01\.07-\d{2}$/.test(kode)) || name.includes('daftar rekaman mutu')) return 'Daftar Rekaman Mutu';
+  if (bakuForm && /\.01\.05-\d{2}$/.test(kode)) return 'BA Pemusnahan Rekaman';
+  if (bakuForm && /\.01\.06-\d{2}$/.test(kode)) return 'Pernyataan Kerahasiaan';
+  if (bakuForm && /\.01\.07-\d{2}$/.test(kode)) return 'Daftar Rekaman Mutu';
   return 'Formulir Kerja';
 }
 
