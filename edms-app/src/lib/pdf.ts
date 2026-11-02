@@ -545,10 +545,10 @@ function buildContentHtml(doc: PdfDocumentData): string {
   const orderedSections = getOrderedSections(doc.jenis, doc.sections);
   const allActive = orderedSections.filter(sec => doc.sections?.[sec.key] && doc.sections[sec.key].trim());
 
-  // Halaman LEMBAR PENGESAHAN / DAFTAR ISI selalu dirender sintesis di atas
-  // (punya slot tanda tangan digital + daftar isi dinamis) — section impor yang
-  // judulnya sama dibuang agar tidak muncul dua kali.
-  const SYNTHESIZED_TITLES = /^(lembar\s+pengesahan|daftar\s+isi)$/i;
+  // Keep imported approvals intact. Only the table of contents is synthesized.
+  const SYNTHESIZED_TITLES = /^daftar\s+isi$/i;
+  const hasOriginalApproval = allActive.some(sec => /^(?:lembar|halaman)\s+pengesahan/i.test(cleanSectionTitle(sec.title)))
+    || !!doc.sections.halaman_scan_asli;
   const RIWAYAT_TITLE = /^riwayat\s+perubahan$/i;
   const importedRiwayat = allActive.some(sec => RIWAYAT_TITLE.test(cleanSectionTitle(sec.title)));
   const activeSections = allActive.filter(sec => !SYNTHESIZED_TITLES.test(cleanSectionTitle(sec.title)));
@@ -631,7 +631,7 @@ function buildContentHtml(doc: PdfDocumentData): string {
 <style>${buildPdfStyles()}</style>
 </head><body>
 <div class="page">
-  ${pengesahanHtml}
+  ${hasOriginalApproval && !doc.mgrSignature && !doc.pimpinanSignature ? '' : pengesahanHtml}
   ${riwayatHtml}
   ${daftarIsiHtml}
   ${bodyHtml}

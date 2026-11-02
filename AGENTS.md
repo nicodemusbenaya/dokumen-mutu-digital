@@ -1,243 +1,43 @@
-# AI Agent Context & Development Guide
-## EDMS PLN UP Sertifikasi — Sistem Dokumen Mutu Digital
+# Panduan Agen — EDMS PLN UP Sertifikasi
 
-Dokumen ini berisi konteks arsitektur, lingkungan kerja, target deployment, dan konvensi proyek untuk asisten AI (AI Agents). Dokumen ini mengacu langsung pada [Spesifikasi_EDMS_Dokumen_Mutu_UPS.md](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/Spesifikasi_EDMS_Dokumen_Mutu_UPS.md).
+Keputusan aktif versi 2.1. Baca [plan.md](plan.md) dan [spesifikasi](Spesifikasi_EDMS_Dokumen_Mutu_UPS.md). Dokumen dalam docs/archive adalah historis, bukan instruksi aktif. Source implementasi ada di edms-v2. Deploy NAS internal lulus 23 Oktober 2026; baca [docs/IMPLEMENTASI_V2.md](docs/IMPLEMENTASI_V2.md) sebelum operasi produksi untuk bukti, checkpoint dan batas pemulihan. Update berikutnya memakai backup baru; manifest transisi awal merupakan operasi sekali pakai.
 
----
+## Lingkup dan data
 
-## 1. Ringkasan & Ruang Lingkup Sistem (Sesuai Spesifikasi Bab 1–2)
-Aplikasi Electronic Document Management System (EDMS) khusus modul **Quality Document Control** untuk pengelolaan dokumen mutu terkendali (*controlled documents*) di lingkungan internal **PLN UP Sertifikasi (UPS)**.
+Bangun ulang pengelolaan file PDF/DOCX/XLSX utuh dengan metadata, versi, histori dan audit. Source lama edms-app/perubahan lokal dipertahankan; source pengganti dapat disusun di edms-v2 sebagai direktori kerja saja.
 
-* **Jenis Dokumen Mutu**:
-  1. Manual Mutu (Pedoman Mutu)
-  2. Prosedur Mutu / SOP
-  3. Instruksi Kerja (IK)
-  4. Formulir Kerja
-* **Pendekatan Dokumen**: Dokumen dikelola sebagai **data terstruktur** di dalam database (bukan sekadar upload file Word/PDF).
-* **Tanda Tangan Digital**: Menggunakan signature pad internal (canvas mouse/touchscreen) dengan metadata keabsahan (user login, timestamp, IP/device, hash dokumen saat disahkan). Tidak memerlukan sertifikat pihak ketiga (BSrE/PSrE) untuk versi awal.
+Pengguna memutuskan mulai hanya dari Dokumen Final. Data dokumen lama beserta histori/sections/relasi/approval dan file khusus miliknya akan dihapus saat transisi setelah backup konsisten dan restore teruji. Pengguna telah meminta implementasi/deploy; penghapusan tetap bagian transisi setelah backup/restore teruji, bukan pada startup atau sebelum gate lulus. Jangan migrasikan dokumen lama ke register baru. Jaga akun, roles, bidang, master independen, konfigurasi, secret, logo, source dan backup. Audit akun/sistem yang bercampur tidak boleh ikut dihapus massal. Gunakan manifest relasi dan file bersama; jangan DROP DATABASE, reset semua tabel, seed ulang akun atau mengosongkan volume. Jangan menghapus folder sumber Dokumen Final/Folder Logo. Catat penghapusan secara berversi dan dapat dipulihkan.
 
----
+Original immutable, SHA-256, nama/path asli dan snapshot versi lengkap. Satu dokumen dapat memiliki beberapa format pada revisi sama; pasangan ambigu Perlu Pemeriksaan. PDF resmi dan turunan dibedakan; jangan overwrite original/pengesahan atau menyalin tanda tangan.
 
-## 2. Peran Pengguna & Hak Akses (RBAC — Sesuai Spesifikasi Bab 3)
+## Workflow rilis pertama
 
-| Peran | Hak Akses Utama |
-|---|---|
-| **Penyusun Dokumen (Staf Bidang)** | Membuat draft dokumen baru, mengajukan revisi, menautkan referensi dari master referensi |
-| **Tim Mutu / Reviewer** | Meninjau draft, memberi catatan revisi, meneruskan ke persetujuan (approval) |
-| **Manager Bidang** | Menandatangani persetujuan tahap 1 (approval) untuk dokumen di bidangnya |
-| **Pimpinan Unit** | Menandatangani persetujuan final (pengesahan) sebelum dokumen berstatus Aktif |
-| **Seluruh Pengguna Internal (Viewer)** | Membaca, mencari, mengunduh PDF dokumen aktif, serta melakukan acknowledge dokumen |
-| **Admin Sistem** | Mengelola master referensi, struktur bidang, akun/hak akses, dan siklus review |
+Tidak ada approval bertingkat, review, tanda tangan baru atau menu approval. Pengguna yang berhak upload/update langsung menerbitkan versi aktif setelah validasi/penyimpanan berhasil. Versi aktif lama tetap tersedia selama proses; perpindahan active_version_id dan pengarsipan sebelumnya atomik. Kegagalan konversi tidak membatalkan sumber valid yang sudah tersimpan. expectedVersion/lock_version untuk konflik 409; ringkasan perubahan wajib. Histori versi baru tetap disimpan walaupun histori aplikasi lama tidak dimigrasikan.
 
----
+## Upload, konversi dan pengujian
 
-## 3. Workflow Siklus Hidup Dokumen (Sesuai Spesifikasi Bab 4.2)
+Upload individual/multiple PDF, DOCX, XLSX dan ZIP subfolder. Streaming/chunk ke disk, validasi isi/MIME/struktur, kuota/timeout, proteksi traversal/symlink/zip bomb. Log per file, partial success, CSV, retry idempoten dan pemulihan job lease/heartbeat. ZIP tidak terbaca diberi error arsip tanpa mengarang nama file.
 
-Status dokumen bergerak secara berjenjang:
-```text
-[Draft] ──> [Review Tim Mutu] ──> [Menunggu Approval Manager] ──> [Menunggu Approval Pimpinan] ──> [Aktif]
-   ▲                 │                         │                               │                      │
-   └─ Catatan Revisi ┴──────── Catatan Revisi ─┴────────────── Catatan Revisi ─┘                      ▼
-                                                                                           [Obsolete / Diarsipkan]
-```
-* Setiap pengesahan versi baru otomatis menandai versi sebelumnya sebagai **Obsolete** dan mengarsipkannya (tidak dihapus demi retensi audit ISO).
-* Riwayat approval (siapa, kapan, catatan revisi, dan tanda tangan) tersimpan permanen di tabel `approvals` dan `audit_logs`.
+Rilis pertama mencakup Office-ke-PDF dan PDF-ke-DOCX. Uji engine PDF-ke-DOCX secara tersendiri; LibreOffice Office-ke-PDF bukan jaminan konversi balik. Simpan lineage original/converted dan source hash/version. Jangan mengirim file ke layanan eksternal otomatis. PDF scan boleh menghasilkan DOCX gambar halaman dengan keterangan keterbatasan, bukan janji OCR editable. Gagal berarti status/error/retry, bukan file kosong atau rename ekstensi.
 
----
+Setiap download DOCX hasil konversi PDF wajib popup: "Dokumen ini merupakan hasil konversi PDF. Tata letak, tabel, dan isi mungkin berbeda dari dokumen asli. Periksa kembali sebelum digunakan." Sediakan Batal/Lanjutkan Download; Batal tidak download. Endpoint converted Word memerlukan acknowledgement terikat pengguna/file/version, selain izin download. Word original tidak diberi label converted.
 
-## 4. Target Deployment & Arsitektur Jaringan (Sesuai Spesifikasi Bab 9)
+Pengujian upload, impor, update, download dan konversi hanya dengan file dummy sintetis berlabel DUMMY/TEST; jangan upload/seed/konversi massal Dokumen Final selama development/UAT/smoke NAS. Gunakan dummy PDF/DOCX/XLSX/ZIP, valid/korup/duplikat dan simulasi kegagalan terkendali. Identifikasi seluruh file/job/turunan dummy untuk cleanup selektif. Impor dokumen asli adalah pekerjaan operasional setelah aplikasi siap, bukan test. Pada tugas dokumentasi ini tidak menjalankan upload, purge, migrasi atau deploy.
 
-### A. Server Produksi: QNAP NAS Internal
-* **Host Internal**: `10.10.200.166`
-* **Port MariaDB Internal**: `3307` (Hanya internal NAS, **tidak boleh di-port-forward ke internet publik**)
-* **Nama Database**: `edms_ups`
-* **Spesifikasi Mesin**: QNAP NAS (Resource hemat/entry-level).
-* **Strategi Deployment**:
-  * Next.js dikompilasi dengan mode `output: 'standalone'` agar hemat memori (RAM ~50MB–100MB).
-  * Dijalankan melalui **Container Station (Docker)** di QNAP.
-  * Penyimpanan file fisik (PDF, attachment, signature image) disimpan di storage lokal NAS, bukan blob database (Sesuai Bab 9.5 Spesifikasi).
+## UI dan teknologi
 
-### B. Akses Luar Kantor (WFH) & Tanpa Port Forwarding: Cloudflare Tunnel
-* **Kondisi Kantor**:
-  * Tidak ada VPN kantor.
-  * Tidak bisa membuka/mem-forward port di router kantor.
-* **Solusi**: Menggunakan **Cloudflare Tunnel (`cloudflared`)** sebagai container pendamping di QNAP.
-* `cloudflared` membuat koneksi aman *outbound* (keluar) ke Cloudflare Edge sehingga aplikasi dapat diakses dari internet publik via domain resmi (misal `https://edms-mutu.domain.com`) secara **gratis, otomatis HTTPS, tanpa buka port router, dan tanpa VPN**.
+Periksa dan gunakan skill UI/desain terpasang yang sesuai saat implementasi UI; jangan mengklaim sudah dipakai sebelum membaca/menerapkannya. Tema biru muda dan kuning PLN, latar netral/teks kontras, dua logo lokal Danantara dan PLN dari Folder Logo, proporsi asli. Responsive desktop/tablet, keyboard/focus/modal accessible, state loading/kosong/error jelas. SVG stroke 1.75/currentColor, bukan emoji.
 
----
+Next.js App Router, TypeScript, CSS Modules, MariaDB. Tidak menambah Tailwind/dependency berat tanpa kebutuhan. Database snake_case, API/frontend camelCase, mapping eksplisit. Gunakan pool dan withTransaction untuk mutasi lintas tabel (referensi helper lama edms-app/src/lib/db.ts). Filesystem perlu staging/atomic rename/kompensasi/recovery, bukan asumsi satu transaksi DB.
 
-## 5. Struktur Penyimpanan Fisik & Database (Sesuai Spesifikasi Bab 9.5)
+## Infrastruktur dan keamanan
 
-```text
-Database MariaDB (edms_ups)
-├── users & roles
-├── documents & document_versions
-├── document_sections (data teks terstruktur TipTap)
-├── approvals & audit_logs
-└── master_references & document_references
+Tetap container/service aplikasi lama, DB edms_ups dan mount storage/jaringan/port/Tunnel yang sama. Hardware Celeron J3455 4 core/4 thread hingga 2,3 GHz, RAM 4 GB; target linux/amd64 diverifikasi runtime sebelum rilis. Build/install dependency di laptop dalam Linux container; paket standalone termasuk public/.next/static dan dependency runtime. NAS tidak build/npm install. Image update dapat merekreasi instance service yang sama, bukan stack baru.
 
-Storage Fisik NAS (/share/Container/edms-data → mount ke /app/storage/)
-├── pdf/            (File PDF dokumen resmi Controlled Copy)
-├── attachments/    (Lampiran formulir / file pendukung)
-└── signatures/     (File gambar tanda tangan digital)
-```
+Worker background dalam container aplikasi yang sama, satu job konversi sekaligus dengan batas waktu/resource/cache; ukur beban pada NAS. Secret environment, akun DB terbatas, sesi HttpOnly, origin/CSRF, rate limit dan RBAC server-side termasuk file/arsip/sumber editable. File private di luar public, tanpa cache publik. Port DB 3307 internal saja.
 
----
+Migrasi schema berversi dan checkpoint; uji cleanup/migrasi pada salinan backup lokal. DDL MariaDB tidak diasumsikan transactional. Backup DB+file sebelum transisi, maintenance window, health/smoke dummy dan rollback konsisten wajib disiapkan. Jangan sync data laptop menimpa NAS.
 
-## 6. Concurrency & Multi-User Safety (Sesuai Spesifikasi Bab 9.4)
+## Cara bekerja
 
-* **Atomic Transaction**: Operasi mutasi yang melibatkan beberapa tabel (dokumen, section, referensi, approval) **wajib** menggunakan `withTransaction` dari [db.ts](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/edms-app/src/lib/db.ts).
-* **Pencegahan Lost Update**: Gunakan pengecekan nomor versi (*optimistic locking*) saat menyimpan revisi dokumen agar perubahan pengguna tidak saling menimpa secara diam-diam.
-* **Jejak Audit Otomatis**: Setiap perubahan data wajib mencatat user ID, timestamp, IP/device, dan action context ke tabel `audit_logs`.
-
----
-
-## 7. Lingkungan Pengembangan (Development Workflow)
-
-### Skenario 1: Bekerja dari Luar Kantor / Rumah (WFH)
-Karena IP NAS `10.10.200.166` tidak bisa diakses langsung dari jaringan luar tanpa VPN:
-* **Gunakan Database Lokal** di laptop pengembang (Docker Desktop / MariaDB lokal).
-* Konfigurasi [.env.local](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/edms-app/.env.local):
-  ```env
-  DB_HOST=127.0.0.1
-  DB_PORT=3307
-  DB_NAME=edms_ups
-  DB_USER=root
-  DB_PASSWORD=12345678
-  ```
-* Schema dan data master diimpor dari:
-  * `edms-app/sql/001_schema.sql`
-  * `edms-app/sql/002_seed.sql`
-
-### Skenario 2: Bekerja di Jaringan Kantor (On-Premise)
-* Terhubung langsung ke Wi-Fi / LAN intranet kantor PLN.
-* Konfigurasi [.env.local](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/edms-app/.env.local):
-  ```env
-  DB_HOST=10.10.200.166
-  DB_PORT=3307
-  DB_NAME=edms_ups
-  DB_USER=root
-  DB_PASSWORD=12345678
-  ```
-
----
-
-## 8. Struktur Direktori Proyek
-
-```
-Dokumen Mutu Digital/
-├── AGENTS.md                         # Dokumen konteks & panduan agen ini
-├── QNAP_DEPLOYMENT_GUIDE.md           # Panduan lengkap deployment ke QNAP & Cloudflare Tunnel
-├── Spesifikasi_EDMS_Dokumen_Mutu_UPS.md # Dokumen Spesifikasi Kebutuhan v1.0 resmi
-├── edms-dokumen-mutu.html             # Prototipe visual interaktif 6 modul
-└── edms-app/                         # Aplikasi Fullstack Next.js
-    ├── Dockerfile                     # Multi-stage build ringan untuk QNAP
-    ├── docker-compose.yml             # Compose file untuk Container Station QNAP
-    ├── sql/
-    │   ├── 001_schema.sql             # DDL MariaDB (tabel, relasi, constraint)
-    │   └── 002_seed.sql               # Data master (users, roles, referensi standar ISO)
-    ├── src/
-    │   ├── app/
-    │   │   ├── (app)/                 # Rute utama (dashboard, editor, approval, audit, dll)
-    │   │   ├── api/                   # API Routes (auth, documents, approvals, audit, pdf)
-    │   │   └── login/                 # Halaman login
-    │   ├── components/
-    │   │   ├── icons/Icons.tsx         # Ikon SVG modular (Lucide-style, stroke-based)
-    │   │   ├── layout/                # Sidebar, Topbar
-    │   │   └── editor/                # TipTapEditor, TableGridEditor
-    │   └── lib/
-    │       ├── db.ts                  # Koneksi MariaDB pool
-    │       ├── auth.ts                # JWT session (HttpOnly cookie)
-    │       ├── rbac.ts                # Role-Based Access Control
-    │       ├── audit.ts               # Audit log helper
-    │       ├── pdf.ts                 # PDF generation (Puppeteer + Chromium)
-    │       └── pdf-utils.ts           # Fungsi murni untuk injeksi TTD ke HTML (client-safe)
-    ├── .env.local                     # Environment variables lokal
-    └── next.config.ts                 # Konfigurasi Next.js (output: 'standalone')
-```
-
----
-
-## 9. API Endpoints
-
-| Endpoint | Method | Deskripsi | Akses |
-|---|---|---|---|
-| `/api/auth/login` | POST | Login & set session cookie | Publik |
-| `/api/auth/logout` | POST | Hapus session cookie | Login |
-| `/api/auth/me` | GET | Dapatkan data user saat ini | Login |
-| `/api/documents` | GET | Daftar dokumen (filter, pagination, search). **Default mengecualikan template**; `includeTemplates=1` → semua dokumen; `isTemplate=1` → hanya pustaka template (butuh `document:create`, selain itu 403) | Login |
-| `/api/documents` | POST | Buat dokumen baru | Penyusun, Admin |
-| `/api/documents/from-template` | POST | Buat dokumen baru sebagai salinan template (sections, urutan, kop, media, referensi) | Penyusun, Admin |
-| `/api/documents/[id]` | GET | Detail dokumen + sections + approvals | Login |
-| `/api/documents/[id]` | PUT | Update dokumen (optimistic locking) | Penyusun, Admin |
-| `/api/documents/[id]` | DELETE | Hapus dokumen | Admin Sistem |
-| `/api/documents/[id]/template` | POST | Tandai dokumen sebagai template (`is_template=1`) | Penyusun, Admin (`template:set`) |
-| `/api/documents/[id]/template` | DELETE | Batalkan tanda template | Penyusun, Admin (`template:set`) |
-| `/api/documents/[id]/approve` | POST | Approve/reject dengan tanda tangan digital | Reviewer, Manager, Pimpinan |
-| `/api/documents/[id]/submit` | POST | Submit dokumen untuk review | Penyusun |
-| `/api/documents/[id]/revise` | POST | Buka siklus revisi (Aktif → Draft) | Penyusun, Admin |
-| `/api/documents/[id]/pdf` | POST | Generate PDF dokumen | Login |
-| `/api/references` | GET/POST | Master referensi standar | Login / Admin |
-| `/api/references/[id]` | PUT/DELETE | Update/hapus referensi | Admin |
-| `/api/audit` | GET | Log audit aktivitas | Login |
-
----
-
-## 10. Fitur Utama
-
-### Tanda Tangan Digital
-- **Signature Pad**: Komponen canvas menggunakan library `signature_pad` npm
-- **Penyimpanan**: File PNG disimpan di `public/uploads/signatures/` dengan naming `sig_{userId}_doc{docId}_stage{N}_{timestamp}.png`
-- **Path disimpan** di kolom `approvals.signature_path`
-- **Rendering di PDF**: Base64 data URL di-embed langsung ke HTML sebelum konversi Puppeteer
-- **Rendering di Web**: `<img src={signaturePath}>` langsung dari API response
-
-### Ikon SVG
-- Semua ikon menggunakan SVG modular di `src/components/icons/Icons.tsx`
-- Konsisten `strokeWidth="1.75"`, style Lucide (line-based, rounded caps)
-- Tidak menggunakan emoji — semua ikon adalah SVG yang di-render
-- Ikon yang tersedia: Dashboard, Documents, Editor, Table, Trash, Filter, Approval, Pdf, Peta, References, Audit, Logout, Search, Check, ArrowLeft, Plus, Download, User, Lock, Building, Clock, Activity, FileText, CheckCircle, AlertCircle, Send, Refresh
-
-### RBAC (Role-Based Access Control)
-- Validasi role dilakukan di **server-side** (API routes), bukan hanya frontend
-- Role: Admin Sistem, Pimpinan Unit, Manager Bidang, Tim Mutu, Penyusun Dokumen
-- Fungsi `hasPermission()` dan `canEditDocument()` di `src/lib/rbac.ts`
-
-### Hapus Dokumen
-- Hanya **Admin Sistem** yang dapat menghapus dokumen
-- Tombol Hapus hanya muncul di daftar dokumen untuk admin
-- Konfirmasi modal sebelum hapus
-- Endpoint: `DELETE /api/documents/[id]` — hanya dokumen berstatus `Obsolete` yang dapat dihapus
-
-### Template Dokumen
-- Pustaka template di halaman `/templates` (hanya pengguna dengan `document:create`); menu sidebar "Template Dokumen" mengikuti hak yang sama
-- Kolom `is_template` + `template_source_id` (FK ke dokumen asal) — migrasi `sql/004_migration_template.sql` (143 blanko sudah ditandai)
-- Buat dokumen dari template: `POST /api/documents/from-template` — menyalin sections, urutan seksi, kop, referensi, berkas sumber, dan **folder media** (`storage/media/{idLama}` → `{idBaru}`) dengan rewrite seluruh URL `/uploads/media/{idLama}/` di transaksi atomik (`src/lib/templateCopy.ts`); kode duplikat → 409
-- Tandai/batal template: `POST/DELETE /api/documents/[id]/template` (permission `template:set`), tanpa syarat status, `updated_at` dipertahankan
-- Register `/documents` mengecualikan template secara default; tampil toggle "Tampilkan template" + badge baris. **Antrean approval, sidebar badge, editor, PDF, dan peta mengambil `includeTemplates=1`** sehingga template yang sedang dalam siklus approval tidak pernah tersembunyi
-- Dokumen hasil salinan lahir `Draft` / versi `1.0` dan **tidak** ikut pustaka template
-- Seed 5 template bawaan: `scripts/seed_templates.mjs` (kode `TPL.*`, idempoten by kode)
-
----
-
-## 9. Pedoman Khusus Pengkodean untuk AI Agent
-
-1. **Jaga Efisiensi Resource**:
-   * Jangan menambahkan dependency berat yang tidak esensial karena target server adalah QNAP entry-level.
-   * Pertahankan konfigurasi `output: 'standalone'` pada build Next.js.
-2. **Koneksi Database & Pool**:
-   * Selalu gunakan pool dari [db.ts](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/edms-app/src/lib/db.ts).
-   * Parameter koneksi **wajib** membaca dari `process.env` (jangan pernah hardcode host, user, atau password).
-3. **Styling & CSS**:
-   * Proyek ini menggunakan **Vanilla CSS Modules** (desain modern, responsif desktop & tablet). Jangan menambahkan TailwindCSS kecuali ada instruksi eksplisit dari pengguna.
-4. **Keamanan & Validasi Server**:
-   * Validasi token JWT session dan hak akses peran (RBAC) wajib diterapkan di level API endpoint / server actions, bukan sekadar menyembunyikan tombol di frontend.
-5. **Generator PDF ISO**:
-   * Modul PDF di [pdf.ts](file:///c:/Users/Nicodemus/Documents/Code/Dokumen%20Mutu%20Digital/edms-app/src/lib/pdf.ts) menggunakan `puppeteer-core` dan `@sparticuz/chromium-min` untuk lingkungan server/container Linux/Windows dengan layout kop surat resmi dan watermark *Controlled Copy*.
-6. **Ikon SVG**:
-   * Gunakan ikon dari `src/components/icons/Icons.tsx`. Jangan gunakan emoji sebagai pengganti ikon.
-   * Semua ikon harus stroke-based (bukan filled), konsisten `strokeWidth="1.75"`, dan menggunakan `currentColor` agar mengikuti warna parent.
-7. **Penanganan Data API (snake_case vs camelCase)**:
-   * Database MariaDB menggunakan snake_case (`signature_path`, `actor_name`, `current_version`).
-   * Frontend TypeScript menggunakan camelCase (`signaturePath`, `actorName`, `currentVersion`).
-   * Mapping dilakukan di API route sebelum response dikirim ke client.
+Jangan git reset/clean atau menghapus perubahan pengguna. Instruksi Next.js lokal di edms-app/AGENTS.md tetap berlaku bila menyentuh source lama. Tandai selesai hanya berdasarkan bukti; rencana bukan implementasi. Permintaan aktif mencakup implementasi/deploy. Ikuti gate dummy test, backup/restore dan runtime Linux; jangan menyatakan berhasil atau menghapus data produksi ketika akses/runtime belum siap.

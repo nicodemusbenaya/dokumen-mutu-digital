@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDMS — Sistem Dokumen Mutu Digital · PLN UP Sertifikasi</title>
+<meta name="description" content="Electronic Document Management System untuk pengelolaan dokumen mutu PLN UP Sertifikasi — paperless, terstruktur, dan terkendali.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════ */
+:root {
+  --navy:        #1B2A4A;
+  --navy-deep:   #0F1C33;
+  --navy-mid:    #243660;
+  --navy-glass:  rgba(27,42,74,.88);
+  --amber:       #D99A34;
+  --amber-light: #F3DEB4;
+  --amber-glow:  rgba(217,154,52,.18);
+  --green:       #2E7D5A;
+  --green-soft:  #D4EDE1;
+  --red:         #B4483C;
+  --red-soft:    #F3DCD8;
+  --paper:       #F5F3ED;
+  --paper-line:  #E2DDD2;
+  --card:        #FFFFFF;
+  --ink:         #1A1A1A;
+  --ink-mid:     #444444;
+  --ink-soft:    #72726A;
+  --ink-muted:   #A8A49C;
+  --serif:       'Playfair Display', Georgia, serif;
+  --sans:        'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --r-sm:        6px;
+  --r-md:        10px;
+  --r-lg:        16px;
+  --r-xl:        22px;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:   0 4px 16px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.05);
+  --shadow-lg:   0 12px 40px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.06);
+  --shadow-xl:   0 24px 60px rgba(0,0,0,.18);
+  --sidebar-w:   248px;
+  --header-h:    60px;
+  --anim-fast:   .15s ease;
+  --anim-med:    .25s ease;
+  --anim-slow:   .4s cubic-bezier(.22,.68,0,1.2);
+}
+
+/* Dark mode */
+body.dark {
+  --paper:       #111827;
+  --paper-line:  #1F2937;
+  --card:        #1A2438;
+  --ink:         #F0EDE8;
+  --ink-mid:     #C5C0B8;
+  --ink-soft:    #8A8680;
+  --ink-muted:   #5A5650;
+  --navy-glass:  rgba(15,28,51,.92);
+}
+
+/* ═══════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  transition: background var(--anim-med), color var(--anim-med);
+  overflow: hidden;
+}
+button { font-family: var(--sans); cursor: pointer; }
+input, select, textarea { font-family: var(--sans); }
+a { color: inherit; text-decoration: none; }
+
+/* ═══════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════ */
+#app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── LOGIN ── */
+#login-screen {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 50%, #2A3F6A 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+#login-screen.hidden { display: none; }
+.login-card {
+  background: rgba(255,255,255,.06);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: var(--r-xl);
+  padding: 44px 48px;
+  width: 420px;
+  box-shadow: var(--shadow-xl);
+  animation: slideUp .4s var(--anim-slow);
+}
+.login-logo {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 32px;
+}
+.login-logo-icon {
+  width: 44px; height: 44px; background: var(--amber);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.login-logo-text h1 {
+  font-family: var(--serif); font-size: 17px; color: #fff; font-weight: 600;
+}
+.login-logo-text p { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 2px; }
+.login-field { margin-bottom: 16px; }
+.login-field label { display: block; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.6); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px; }
+.login-field input, .login-field select {
+  width: 100%; padding: 11px 14px; border-radius: var(--r-md);
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+  color: #fff; font-size: 14px; outline: none; transition: border-color var(--anim-fast);
+}
+.login-field input:focus, .login-field select:focus { border-color: var(--amber); }
+.login-field select option { background: var(--navy-deep); color: #fff; }
+.login-btn {
+  width: 100%; padding: 13px; background: var(--amber); border: none;
+  border-radius: var(--r-md); color: var(--navy-deep); font-size: 14px; font-weight: 700;
+  margin-top: 8px; transition: transform var(--anim-fast), box-shadow var(--anim-fast), background var(--anim-fast);
+}
+.login-btn:hover { background: #E8AC46; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(217,154,52,.4); }
+.login-btn:active { transform: translateY(0); }
+.login-hint { font-size: 11.5px; color: rgba(255,255,255,.35); text-align: center; margin-top: 18px; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--navy-glass);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255,255,255,.08);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  transition: width var(--anim-med);
+  position: relative; z-index: 10;
+}
+.sidebar-brand {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.sidebar-brand-logo {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+.sidebar-brand-icon {
+  width: 36px; height: 36px; background: var(--amber);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.sidebar-brand-name {
+  font-family: var(--serif); font-size: 15px; color: #fff; font-weight: 600; line-height: 1.2;
+}
+.sidebar-unit {
+  font-size: 10.5px; color: rgba(255,255,255,.4); margin-top: 4px; letter-spacing: .02em;
+}
+
+.sidebar-user {
+  margin: 14px 16px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber) 0%, #C87D1A 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--navy-deep); flex-shrink: 0;
+}
+.user-info-name { font-size: 13px; font-weight: 600; color: #fff; }
+.user-info-role { font-size: 10.5px; color: rgba(255,255,255,.4); margin-top: 1px; }
+
+.sidebar-section-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255,255,255,.28); padding: 14px 20px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; margin: 1px 8px;
+  border-radius: var(--r-md); cursor: pointer;
+  font-size: 13px; color: rgba(255,255,255,.55);
+  transition: background var(--anim-fast), color var(--anim-fast);
+  position: relative;
+}
+.nav-item:hover { background: rgba(255,255,255,.07); color: rgba(255,255,255,.85); }
+.nav-item.active { background: rgba(255,255,255,.1); color: #fff; }
+.nav-item.active::before {
+  content: '';
+  position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 3px; background: var(--amber); border-radius: 0 3px 3px 0;
+  margin-left: -8px;
+}
+.nav-icon { font-size: 16px; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto; background: var(--amber); color: var(--navy-deep);
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+}
+
+.sidebar-footer {
+  margin-top: auto; padding: 16px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  display: flex; gap: 8px;
+}
+.sidebar-footer-btn {
+  flex: 1; padding: 8px; border-radius: var(--r-sm);
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  color: rgba(255,255,255,.5); font-size: 18px;
+  transition: all var(--anim-fast);
+}
+.sidebar-footer-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+/* ── MAIN CONTENT ── */
+.main-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  height: var(--header-h); flex-shrink: 0;
+  background: var(--card);
+  border-bottom: 1px solid var(--paper-line);
+  display: flex; align-items: center; padding: 0 28px; gap: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: background var(--anim-med);
+}
+.topbar-title { font-size: 17px; font-weight: 600; color: var(--ink); flex: 1; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.topbar-search {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--paper); border: 1px solid var(--paper-line);
+  border-radius: var(--r-md); padding: 7px 12px; min-width: 220px;
+  transition: border-color var(--anim-fast);
+}
+.topbar-search:focus-within { border-color: var(--amber); }
+.topbar-search input {
+  background: none; border: none; outline: none; font-size: 13px;
+  color: var(--ink); width: 100%;
+}
+.topbar-search input::placeholder { color: var(--ink-muted); }
+
+.content-area {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 28px 32px;
+  background: var(--paper);
+  transition: background var(--anim-med);
+}
+
+/* ── SCREENS ── */
+.screen { display: none; animation: fadeSlide var(--anim-med) forwards; }
+.screen.active { display: block; }
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════
+   REUSABLE COMPONENTS
+═══════════════════════════════════════════════ */
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border-radius: var(--r-md); font-size: 13px; font-weight: 600;
+  border: 1.5px solid transparent; transition: all var(--anim-fast); white-space: nowrap;
+}
+.btn-primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+.btn-primary:hover { background: var(--navy-mid); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-amber { background: var(--amber); color: var(--navy-deep); border-color: var(--amber); }
+.btn-amber:hover { background: #E8AC46; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(217,154,52,.35); }
+.btn-outline { background: transparent; color: var(--navy); border-color: var(--navy); }
+.btn-outline:hover { background: var(--navy); color: #fff; }
+.btn-ghost { background: transparent; color: var(--ink-soft); border-color: var(--paper-line); }
+.btn-ghost:hover { background: var(--paper); border-color: var(--ink-muted); color: var(--ink); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { opacity: .9; transform: translateY(-1px); }
+.btn-green { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-green:hover { opacity: .9; transform: translateY(-1px); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-xs { padding: 4px 10px; font-size: 11px; border-radius: var(--r-sm); }
+.btn:active { transform: translateY(0) !important; }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+
+/* Badges */
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+}
+.badge-aktif    { background: var(--green-soft); color: var(--green); }
+.badge-review   { background: rgba(217,154,52,.15); color: #8A5E15; }
+.badge-approval { background: rgba(217,154,52,.25); color: #7A4E05; }
+.badge-draft    { background: var(--paper-line); color: var(--ink-soft); }
+.badge-obsolete { background: #EBEBEB; color: #999; }
+
+/* Cards */
+.card {
+  background: var(--card); border: 1px solid var(--paper-line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+  transition: background var(--anim-med);
+}
+.card-body { padding: 22px 24px; }
+.card-hover:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); transition: all var(--anim-fast); }
+
+/* Section heading */
+.section-title { font-size: 22px; font-family: var(--serif); font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.section-sub { font-size: 13px; color: var(--ink-soft); margin-bottom: 24px; }
+
+/* Form fields */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px;
+}
+.field input, .field select, .field textarea {
+  width: 100%; padding: 10px 12px; border-radius: var(--r-md);
+  border: 1.5px solid var(--paper-line); background: var(--card); color: var(--ink);
+  font-size: 13.5px; outline: none; transition: border-color var(--anim-fast);
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--amber); }
+.field textarea { min-height: 80px; resize: vertical; }
+.field .field-hint { font-size: 11.5px; color: var(--ink-muted); margin-top: 5px; }
+.field input[readonly], .field select[disabled] { background: var(--paper); color: var(--ink-soft); }
+
+/* Table */
+.table-wrap { background: var(--card); border: 1px solid var(--paper-line); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 12px 16px; font-size: 13px; }
+th { background: var(--paper); color: var(--ink-soft); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--paper-line); }
+td { border-bottom: 1px solid var(--paper-line); color: var(--ink); }
+tr:last-child td { border-bottom: none; }
+tr.row-clickable { cursor: pointer; transition: background var(--anim-fast); }
+tr.row-clickable:hover td { background: var(--paper); }
+
+/* Stat cards */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--paper-line);
+  border-radius: var(--r-lg); padding: 20px 22px; box-shadow: var(--shadow-sm);
+  transition: all var(--anim-fast); cursor: default;
+}
+.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.stat-icon { font-size: 28px; margin-bottom: 12px; }
+.stat-value { font-size: 32px; font-weight: 700; font-family: var(--serif); color: var(--ink); line-height: 1; }
+.stat-label { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+.stat-accent { width: 3px; height: 32px; border-radius: 3px; float: right; margin-top: -36px; }
+
+/* Timeline */
+.timeline { list-style: none; }
+.timeline li {
+  position: relative; padding: 0 0 24px 30px;
+  border-left: 2px solid var(--paper-line);
+}
+.timeline li:last-child { border-color: transparent; padding-bottom: 0; }
+.timeline li::before {
+  content: ''; position: absolute; left: -7px; top: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--card); border: 2px solid var(--paper-line);
+}
+.timeline li.tl-done::before { background: var(--green); border-color: var(--green); }
+.timeline li.tl-current::before { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 4px var(--amber-glow); }
+.tl-title { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.tl-sub { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+
+/* Overlay */
+.overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(10, 20, 40, .6);
+  backdrop-filter: blur(4px);
+  display: none; align-items: center; justify-content: center;
+  animation: fadeIn .2s ease;
+}
+.overlay.show { display: flex; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: var(--card); border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl); padding: 32px 36px;
+  width: 480px; max-width: 95vw; max-height: 85vh;
+  display: flex; flex-direction: column;
+  animation: slideUp .3s var(--anim-slow);
+}
+.modal-wide { width: 640px; }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.modal-title { font-family: var(--serif); font-size: 20px; font-weight: 600; color: var(--ink); }
+.modal-close { background: none; border: none; font-size: 22px; color: var(--ink-muted); cursor: pointer; padding: 0; line-height: 1; }
+.modal-close:hover { color: var(--ink); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+/* Ref chips */
+.ref-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.ref-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(27,42,74,.07); border: 1px solid rgba(27,42,74,.15);
+  color: var(--navy); padding: 5px 10px; border-radius: 20px; font-size: 12.5px;
+}
+.ref-chip .rtype {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-muted); font-weight: 700;
+}
+.ref-chip .x { cursor: pointer; color: var(--ink-muted); margin-left: 4px; font-weight: 700; }
+.ref-chip .x:hover { color: var(--red); }
+
+/* Notification */
+.notif-bar {
+  position: fixed; bottom: 20px; right: 20px; z-index: 300;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.notif {
+  background: var(--navy); color: #fff; padding: 12px 18px; border-radius: var(--r-md);
+  font-size: 13px; box-shadow: var(--shadow-lg); pointer-events: all;
+  animation: notifIn .3s var(--anim-slow);
+  max-width: 320px; border-left: 4px solid var(--amber);
+}
+.notif.success { border-left-color: var(--green); }
+.notif.error { border-left-color: var(--red); }
+@keyframes notifIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Tree */
+.tree-panel { background: var(--card); border: 1px solid var(--paper-line); border-radius: var(--r-lg); overflow-y: auto; max-height: 580px; }
+.tree-group-head {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  font-size: 12.5px; font-weight: 700; color: var(--navy); cursor: pointer;
+  border-bottom: 1px solid var(--paper-line); user-select: none;
+  transition: background var(--anim-fast);
+}
+.tree-group-head:hover { background: var(--paper); }
+.tree-group-head .chev { font-size: 10px; transition: transform .15s; flex-shrink: 0; }
+.tree-group.collapsed .chev { transform: rotate(-90deg); }
+.tree-group.collapsed .tree-children { display: none; }
+.tree-item {
+  display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 28px;
+  font-size: 13px; cursor: pointer; color: var(--ink-mid);
+  border-bottom: 1px solid var(--paper-line); transition: background var(--anim-fast);
+}
+.tree-item:hover { background: var(--paper); }
+.tree-item.selected { background: var(--navy); color: #fff; }
+.tree-item.selected .dot { border-color: rgba(255,255,255,.4); }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 2px solid transparent; }
+.dot-aktif    { background: var(--green); }
+.dot-review   { background: var(--amber); }
+.dot-draft    { background: var(--ink-muted); }
+.dot-obsolete { background: #ccc; }
+.dot-approval { background: #E8821E; }
+
+/* Tabs */
+.tab-bar { display: flex; gap: 2px; border-bottom: 2px solid var(--paper-line); margin-bottom: 20px; }
+.tab-btn {
+  padding: 10px 18px; font-size: 13px; font-weight: 500; color: var(--ink-soft);
+  background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px;
+  cursor: pointer; transition: color var(--anim-fast), border-color var(--anim-fast);
+}
+.tab-btn.active { color: var(--navy); border-bottom-color: var(--amber); font-weight: 700; }
+.tab-btn:hover:not(.active) { color: var(--ink); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; animation: fadeSlide var(--anim-med) forwards; }
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════ */
+.dashboard-grid { display: grid; grid-template-columns: 1fr 340px; gap: 22px; }
+.notif-list { display: flex; flex-direction: column; gap: 10px; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px;
+  background: var(--card); border: 1px solid var(--paper-line); border-radius: var(--r-md);
+  cursor: pointer; transition: all var(--anim-fast);
+}
+.notif-item:hover { box-shadow: var(--shadow-md); border-color: var(--amber); }
+.notif-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.notif-text { font-size: 13px; color: var(--ink); }
+.notif-time { font-size: 11px; color: var(--ink-muted); margin-top: 3px; }
+
+.activity-list { display: flex; flex-direction: column; gap: 0; }
+.activity-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--paper-line); font-size: 12.5px;
+}
+.activity-item:last-child { border-bottom: none; }
+.act-icon { width: 32px; height: 32px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════
+   EDITOR
+═══════════════════════════════════════════════ */
+.editor-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+.editor-section {
+  background: var(--card); border: 1px solid var(--paper-line); border-radius: var(--r-md);
+  margin-bottom: 12px;
+}
+.editor-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--paper-line);
+}
+.editor-section-head h4 { font-family: var(--serif); font-size: 14px; color: var(--navy); font-weight: 600; }
+.editable-area {
+  padding: 14px 16px; min-height: 80px;
+  font-family: var(--serif); font-size: 14px; line-height: 1.8; color: var(--ink);
+  outline: none; border-radius: 0 0 var(--r-md) var(--r-md);
+}
+.editable-area:focus { background: rgba(217,154,52,.04); }
+.editable-area[placeholder]:empty::before {
+  content: attr(placeholder); color: var(--ink-muted); font-style: italic;
+}
+.doc-code-input {
+  font-size: 20px; font-family: var(--serif); font-weight: 600; color: var(--ink);
+  background: none; border: none; border-bottom: 2px solid var(--paper-line);
+  padding: 4px 0 10px; width: 100%; outline: none; margin-bottom: 20px;
+  transition: border-color var(--anim-fast);
+}
+.doc-code-input:focus { border-color: var(--amber); }
+
+/* ═══════════════════════════════════════════════
+   APPROVAL
+═══════════════════════════════════════════════ */
+.approval-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.sig-pad-wrap {
+  border: 2px dashed var(--paper-line); border-radius: var(--r-md);
+  background: var(--paper); overflow: hidden; cursor: crosshair;
+  transition: border-color var(--anim-fast);
+}
+.sig-pad-wrap:hover { border-color: var(--amber); }
+#sigCanvas { display: block; width: 100%; }
+
+/* ═══════════════════════════════════════════════
+   PDF PREVIEW
+═══════════════════════════════════════════════ */
+.pdf-wrap { max-width: 680px; margin: 0 auto; }
+.pdf-page {
+  background: #fff; border: 1px solid var(--paper-line);
+  padding: 52px 60px; box-shadow: var(--shadow-lg);
+  position: relative; font-family: var(--serif);
+}
+.pdf-controlled {
+  position: absolute; top: 16px; right: 16px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  color: var(--green); border: 1.5px solid var(--green);
+  border-radius: 20px; padding: 4px 12px; font-family: var(--sans);
+}
+.pdf-kop { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid var(--navy); padding-bottom: 16px; margin-bottom: 20px; }
+.pdf-kop-logo { width: 48px; height: 48px; background: var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+.pdf-kop-text h3 { font-family: var(--sans); font-size: 15px; font-weight: 700; color: var(--navy); }
+.pdf-kop-text p { font-family: var(--sans); font-size: 11px; color: var(--ink-soft); }
+.pdf-meta-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-family: var(--sans); }
+.pdf-meta-table td { padding: 5px 10px; font-size: 12px; border: 1px solid var(--paper-line); }
+.pdf-meta-table td:first-child { font-weight: 700; background: var(--paper); width: 30%; }
+.pdf-title { font-size: 19px; font-weight: 700; margin-bottom: 20px; text-align: center; color: var(--navy); }
+.pdf-body p { font-size: 13.5px; line-height: 1.8; color: #222; margin-bottom: 12px; }
+.pdf-body h4 { font-size: 14px; font-weight: 700; color: var(--navy); margin: 20px 0 6px; }
+.pdf-sig-block { display: flex; gap: 20px; margin-top: 50px; }
+.pdf-sig-col { flex: 1; text-align: center; }
+.pdf-sig-label { font-family: var(--sans); font-size: 11.5px; color: var(--ink-soft); margin-bottom: 10px; }
+.pdf-sig-drawn { height: 50px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 6px; }
+.pdf-sig-drawn img { max-height: 50px; max-width: 120px; }
+.pdf-sig-name-line { border-top: 1px solid #999; padding-top: 6px; }
+.pdf-sig-name { font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--ink); }
+.pdf-sig-title { font-family: var(--sans); font-size: 11px; color: var(--ink-soft); }
+.pdf-qr { width: 54px; height: 54px; background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 0 0 / 6px 6px; margin: 6px auto; border: 1px solid var(--paper-line); }
+
+/* ═══════════════════════════════════════════════
+   MANAGE DOCS
+═══════════════════════════════════════════════ */
+.manage-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; min-height: 600px; }
+.doc-detail-head { padding: 22px 24px 0; border-bottom: 1px solid var(--paper-line); }
+.dcode { font-size: 11px; color: var(--ink-soft); letter-spacing: .04em; }
+.doc-detail-title { font-family: var(--serif); font-size: 20px; margin: 6px 0 14px; }
+.doc-detail-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+.meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.mi label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); font-weight: 700; display: block; margin-bottom: 4px; }
+.mi .mv { font-size: 13.5px; color: var(--ink); }
+.vhist { list-style: none; }
+.vhist li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 0; border-bottom: 1px solid var(--paper-line); font-size: 13px;
+}
+.vhist li:last-child { border-bottom: none; }
+.vtag { font-weight: 700; }
+.vnote { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+.vlink { color: var(--navy); font-size: 12px; cursor: pointer; text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════
+   AUDIT LOG
+═══════════════════════════════════════════════ */
+.audit-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.audit-CREATE  { background: rgba(46,125,90,.15); color: var(--green); }
+.audit-SUBMIT  { background: rgba(217,154,52,.18); color: #8A5E15; }
+.audit-REVIEW  { background: rgba(27,42,74,.12); color: var(--navy); }
+.audit-APPROVE { background: rgba(46,125,90,.25); color: #1A5E3A; }
+.audit-REJECT  { background: var(--red-soft); color: var(--red); }
+.audit-PUBLISH { background: var(--green-soft); color: var(--green); }
+.audit-GENERATE{ background: rgba(100,100,200,.12); color: #3333AA; }
+.audit-LOGIN   { background: var(--paper-line); color: var(--ink-soft); }
+
+/* ═══════════════════════════════════════════════
+   PRINT STYLES
+═══════════════════════════════════════════════ */
+@media print {
+  body > *:not(#pdf-print-area) { display: none !important; }
+  #pdf-print-area { display: block !important; }
+  .pdf-page { box-shadow: none; border: none; padding: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════ LOGIN ════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">📋</div>
+      <div class="login-logo-text">
+        <h1>Sistem Dokumen Mutu</h1>
+        <p>PLN UP Sertifikasi — EDMS v1.0</p>
+      </div>
+    </div>
+    <div class="login-field">
+      <label>Pengguna</label>
+      <select id="loginUser">
+        <option value="Fakhri|Penyusun Dokumen">Fakhri — Penyusun Dokumen</option>
+        <option value="Sari|Tim Mutu">Sari — Tim Mutu / Reviewer</option>
+        <option value="Riko Ahmad|Manager Bidang">Riko Ahmad — Manager Bidang Mutu</option>
+        <option value="Budi Hartono|Pimpinan Unit">Budi Hartono — Pimpinan Unit</option>
+        <option value="Admin|Admin Sistem">Admin — Admin Sistem</option>
+      </select>
+    </div>
+    <div class="login-field">
+      <label>Kata Sandi</label>
+      <input type="password" placeholder="Masukkan kata sandi..." id="loginPass">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Masuk ke Sistem</button>
+    <p class="login-hint">Demo: semua kata sandi dapat diisi sembarang · Gunakan dropdown untuk ganti peran</p>
+  </div>
+</div>
+
+<!-- ════════ APP SHELL ════════ -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-logo">
+        <div class="sidebar-brand-icon">📋</div>
+        <div class="sidebar-brand-name">Dokumen Mutu<br>Digital</div>
+      </div>
+      <div class="sidebar-unit">PLN UP Sertifikasi · EDMS v1.0</div>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <div>
+        <div class="user-info-name" id="userName">—</div>
+        <div class="user-info-role" id="userRole">—</div>
+      </div>
+    </div>
+    <div class="sidebar-section-label">Menu Utama</div>
+    <nav id="mainNav">
+      <div class="nav-item active" data-screen="dashboard" onclick="gotoScreen('dashboard')">
+        <span class="nav-icon">🏠</span> Dashboard
+      </div>
+      <div class="nav-item" data-screen="register" onclick="gotoScreen('register')">
+        <span class="nav-icon">📄</span> Daftar Dokumen
+        <span class="nav-badge" id="nb-register" style="display:none">0</span>
+      </div>
+      <div class="nav-item" data-screen="editor" onclick="gotoScreen('editor')" id="nav-editor" style="display:none">
+        <span class="nav-icon">✏️</span> Editor Dokumen
+      </div>
+      <div class="nav-item" data-screen="approval" onclick="gotoScreen('approval')">
+        <span class="nav-icon">✅</span> Approval
+        <span class="nav-badge" id="nb-approval" style="display:none">0</span>
+      </div>
+      <div class="nav-item" data-screen="pdf" onclick="gotoScreen('pdf')" id="nav-pdf">
+        <span class="nav-icon">📑</span> Lihat PDF
+      </div>
+      <div class="nav-item" data-screen="manage" onclick="gotoScreen('manage')">
+        <span class="nav-icon">📁</span> Manajemen Dokumen
+      </div>
+      <div class="nav-item" data-screen="refmaster" onclick="gotoScreen('refmaster')">
+        <span class="nav-icon">📚</span> Master Referensi
+      </div>
+      <div class="nav-item" data-screen="auditlog" onclick="gotoScreen('auditlog')" id="nav-audit">
+        <span class="nav-icon">🔍</span> Audit Log
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="sidebar-footer-btn" title="Toggle Dark Mode" onclick="toggleDark()">🌙</button>
+      <button class="sidebar-footer-btn" title="Keluar" onclick="doLogout()" style="flex:2">🚪 Keluar</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <div class="topbar-actions">
+        <div class="topbar-search">
+          <span>🔍</span>
+          <input placeholder="Cari dokumen..." id="globalSearch" oninput="onGlobalSearch(this.value)">
+        </div>
+      </div>
+    </header>
+
+    <div class="content-area" id="contentArea">
+
+      <!-- ══ DASHBOARD ══ -->
+      <section class="screen active" id="screen-dashboard">
+        <div class="section-title">Dashboard</div>
+        <p class="section-sub">Selamat datang, <strong id="dashWelcome">—</strong>. Ringkasan kondisi dokumen mutu unit.</p>
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="dashboard-grid">
+          <div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:14px;color:var(--ink)">⏰ Perlu Perhatian</div>
+            <div class="notif-list" id="dashNotifList"></div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="card-body">
+                <div style="font-size:15px;font-weight:700;margin-bottom:16px;color:var(--ink)">📋 Aktivitas Terbaru</div>
+                <div class="activity-list" id="activityList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ REGISTER ══ -->
+      <section class="screen" id="screen-register">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+          <div>
+            <div class="section-title">Daftar Dokumen Mutu</div>
+            <p class="section-sub" style="margin-bottom:0">Master register seluruh manual mutu, SOP, instruksi kerja, dan formulir.</p>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <select class="btn btn-ghost btn-sm" id="filterBidang" onchange="renderRegister()">
+              <option value="">Semua Bidang</option>
+              <option>Manajemen Mutu</option>
+              <option>Sertifikasi</option>
+              <option>SDM</option>
+              <option>K3</option>
+            </select>
+            <select class="btn btn-ghost btn-sm" id="filterStatus" onchange="renderRegister()">
+              <option value="">Semua Status</option>
+              <option>Aktif</option>
+              <option>Draft</option>
+              <option>Review</option>
+              <option>Menunggu Approval</option>
+              <option>Obsolete</option>
+            </select>
+            <button class="btn btn-primary" id="btnNewDoc" onclick="openNewDoc()">+ Buat Dokumen Baru</button>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <input id="registerSearch" placeholder="Cari kode, judul, atau bidang..." style="width:100%;padding:10px 14px;border:1.5px solid var(--paper-line);border-radius:var(--r-md);font-size:13px;outline:none;background:var(--card);color:var(--ink)" oninput="renderRegister()">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kode</th><th>Judul Dokumen</th><th>Bidang</th><th>Versi</th><th>Status</th><th>Review Berikutnya</th><th>Aksi</th></tr></thead>
+            <tbody id="registerBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ══ EDITOR ══ -->
+      <section class="screen" id="screen-editor">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div>
+            <div class="section-title" id="editorTitle">Editor Dokumen</div>
+            <p class="section-sub" style="margin-bottom:0">Isi dokumen tersimpan sebagai data terstruktur, dapat diedit per bagian.</p>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-ghost" onclick="saveDraft()">💾 Simpan Draft</button>
+            <button class="btn btn-amber" onclick="submitForReview()" id="btnSubmit">📤 Ajukan untuk Review</button>
+          </div>
+        </div>
+        <div class="editor-layout">
+          <div>
+            <!-- Meta -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+                  <div class="field"><label>Kode Dokumen</label><input id="edKode" readonly></div>
+                  <div class="field"><label>Bidang</label>
+                    <select id="edBidang">
+                      <option>Manajemen Mutu</option><option>Sertifikasi</option><option>SDM</option><option>K3</option>
+                    </select>
+                  </div>
+                  <div class="field"><label>Versi Berjalan</label><input id="edVersi" readonly></div>
+                  <div class="field"><label>Jenis Dokumen</label>
+                    <select id="edJenis">
+                      <option>SOP/Prosedur</option><option>Manual Mutu</option><option>Instruksi Kerja</option><option>Formulir Kerja</option>
+                    </select>
+                  </div>
+                  <div class="field" style="grid-column:span 2"><label>Judul Dokumen</label><input id="edJudul" placeholder="Judul dokumen..."></div>
+                </div>
+              </div>
+            </div>
+            <!-- Sections -->
+            <div id="editorSections"></div>
+            <!-- Referensi -->
+            <div class="editor-section">
+              <div class="editor-section-head">
+                <h4>📎 Referensi Dokumen</h4>
+                <button class="btn btn-ghost btn-sm" onclick="openRefPicker()">+ Ambil dari Master</button>
+              </div>
+              <div style="padding:14px 16px">
+                <div class="ref-chips" id="edRefChips"></div>
+                <div style="font-size:12px;color:var(--ink-muted)">Referensi ditautkan (bukan disalin) ke dokumen ini.</div>
+              </div>
+            </div>
+          </div>
+          <!-- Sidebar panel -->
+          <div>
+            <div class="card" style="margin-bottom:14px">
+              <div class="card-body">
+                <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--ink)">📊 Status Dokumen</div>
+                <div id="edStatusInfo" style="font-size:13px;color:var(--ink-soft);line-height:1.7"></div>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:14px">
+              <div class="card-body">
+                <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--ink)">💡 Panduan Pengisian</div>
+                <div style="font-size:12px;color:var(--ink-soft);line-height:1.7">
+                  <b>Tujuan</b>: Jelaskan tujuan dokumen ini.<br>
+                  <b>Ruang Lingkup</b>: Tentukan cakupan dokumen.<br>
+                  <b>Definisi</b>: Daftar istilah penting.<br>
+                  <b>Prosedur</b>: Langkah-langkah pelaksanaan.<br>
+                  <b>Referensi</b>: Ambil dari Master Referensi.
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-body">
+                <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--ink)">⏱ Autosave</div>
+                <div id="autosaveStatus" style="font-size:12px;color:var(--green)">● Tersimpan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ APPROVAL ══ -->
+      <section class="screen" id="screen-approval">
+        <div class="section-title">Approval & Tanda Tangan</div>
+        <p class="section-sub">Proses pengesahan berjenjang dengan signature pad digital.</p>
+        <div id="approvalDocSelect" style="margin-bottom:20px"></div>
+        <div class="approval-layout" id="approvalContent"></div>
+      </section>
+
+      <!-- ══ PDF ══ -->
+      <section class="screen" id="screen-pdf">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px">
+          <div>
+            <div class="section-title">Preview & Generate PDF</div>
+            <p class="section-sub" style="margin-bottom:0">Dokumen dirender ke layout PDF resmi dengan tanda tangan digital.</p>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-ghost" onclick="gotoScreen('manage')">← Kembali</button>
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+          </div>
+        </div>
+        <div class="pdf-wrap" id="pdfContent"></div>
+      </section>
+
+      <!-- ══ MANAGE ══ -->
+      <section class="screen" id="screen-manage">
+        <div class="section-title">Manajemen Dokumen</div>
+        <p class="section-sub">Telusuri dokumen per bidang, buka isi, lihat riwayat versi, atau unduh PDF.</p>
+        <div style="margin-bottom:14px">
+          <input id="manageSearch" placeholder="Cari kode, judul, atau kata kunci isi dokumen..." style="width:100%;padding:10px 14px;border:1.5px solid var(--paper-line);border-radius:var(--r-md);font-size:13px;outline:none;background:var(--card);color:var(--ink)" oninput="renderManageTree()">
+        </div>
+        <div class="manage-layout">
+          <div class="tree-panel" id="manageTree"></div>
+          <div class="card" id="docDetailPanel" style="display:flex;flex-direction:column;overflow:hidden">
+            <div id="docDetailInner" style="display:flex;flex-direction:column;height:100%">
+              <div style="padding:60px;text-align:center;color:var(--ink-muted)">
+                <div style="font-size:48px;margin-bottom:12px">📄</div>
+                <div style="font-size:14px">Pilih dokumen dari daftar di kiri untuk melihat detailnya</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ MASTER REFERENSI ══ -->
+      <section class="screen" id="screen-refmaster">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+          <div>
+            <div class="section-title">Master Referensi Dokumen</div>
+            <p class="section-sub" style="margin-bottom:0">Regulasi, standar, dan dokumen internal yang dipakai berulang — ditautkan, bukan disalin.</p>
+          </div>
+          <div style="display:flex;gap:10px">
+            <select class="btn btn-ghost btn-sm" id="refKatFilter" onchange="renderRefMaster()">
+              <option value="">Semua Kategori</option>
+              <option>Regulasi</option><option>Standar</option><option>Internal</option>
+            </select>
+            <button class="btn btn-primary" id="btnAddRef" onclick="openAddRef()">+ Tambah Referensi</button>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <input id="refSearch" placeholder="Cari nomor regulasi, judul standar, atau kode dokumen..." style="width:100%;padding:10px 14px;border:1.5px solid var(--paper-line);border-radius:var(--r-md);font-size:13px;outline:none;background:var(--card);color:var(--ink)" oninput="renderRefMaster()">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kategori</th><th>Judul Referensi</th><th>Deskripsi</th><th>Dipakai di</th><th>Aksi</th></tr></thead>
+            <tbody id="refMasterBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ══ AUDIT LOG ══ -->
+      <section class="screen" id="screen-auditlog">
+        <div class="section-title">Audit Log</div>
+        <p class="section-sub">Rekam jejak semua aksi dalam sistem — tidak dapat diubah atau dihapus.</p>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <input id="auditSearch" placeholder="Cari user, aksi, atau dokumen..." style="flex:1;padding:10px 14px;border:1.5px solid var(--paper-line);border-radius:var(--r-md);font-size:13px;outline:none;background:var(--card);color:var(--ink)" oninput="renderAuditLog()">
+          <select class="btn btn-ghost btn-sm" id="auditTypeFilter" onchange="renderAuditLog()">
+            <option value="">Semua Tipe</option>
+            <option>CREATE</option><option>SUBMIT</option><option>REVIEW</option><option>APPROVE</option><option>REJECT</option><option>PUBLISH</option><option>GENERATE</option><option>LOGIN</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Waktu</th><th>Pengguna</th><th>Tipe Aksi</th><th>Dokumen</th><th>Keterangan</th></tr></thead>
+            <tbody id="auditLogBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div><!-- /content-area -->
+  </div><!-- /main-wrap -->
+</div><!-- /app -->
+
+<!-- Notification bar -->
+<div class="notif-bar" id="notifBar"></div>
+
+<!-- ══ REF PICKER MODAL ══ -->
+<div class="overlay" id="refPickerOverlay" onclick="if(event.target===this)closeRefPicker()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📚 Ambil dari Master Referensi</div>
+      <button class="modal-close" onclick="closeRefPicker()">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px">Pilih referensi untuk ditautkan ke dokumen. Isinya tidak disalin, hanya ditautkan.</p>
+    <input id="pickerSearch" placeholder="Cari referensi..." style="width:100%;padding:9px 12px;border:1.5px solid var(--paper-line);border-radius:var(--r-md);font-size:13px;outline:none;background:var(--card);color:var(--ink);margin-bottom:10px" oninput="renderPickerList()">
+    <div id="pickerList" style="overflow-y:auto;max-height:280px;border-top:1px solid var(--paper-line)"></div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="closeRefPicker()">Selesai</button></div>
+  </div>
+</div>
+
+<!-- ══ SIGNATURE MODAL ══ -->
+<div class="overlay" id="sigOverlay" onclick="if(event.target===this)closeSig()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✍️ Bubuhkan Tanda Tangan</div>
+      <button class="modal-close" onclick="closeSig()">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">Gunakan mouse atau layar sentuh untuk menggambar tanda tangan Anda. Metadata sesi akan dicatat otomatis sebagai jejak keabsahan.</p>
+    <div class="sig-pad-wrap">
+      <canvas id="sigCanvas" width="400" height="180"></canvas>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:14px;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="clearSig()">🗑 Hapus</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeSig()">Batal</button>
+        <button class="btn btn-green" onclick="confirmSig()">✅ Konfirmasi & Sahkan</button>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:10px 12px;background:var(--paper);border-radius:var(--r-sm);font-size:11.5px;color:var(--ink-soft)">
+      🔒 Metadata: <span id="sigMeta"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NEW DOC MODAL ══ -->
+<div class="overlay" id="newDocOverlay" onclick="if(event.target===this)closeNewDoc()">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div class="modal-title">📝 Buat Dokumen Baru</div>
+      <button class="modal-close" onclick="closeNewDoc()">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field">
+        <label>Jenis Dokumen</label>
+        <select id="ndJenis" onchange="autoGenKode()">
+          <option>SOP/Prosedur</option><option>Manual Mutu</option><option>Instruksi Kerja</option><option>Formulir Kerja</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Bidang Pemilik</label>
+        <select id="ndBidang" onchange="autoGenKode()">
+          <option>Manajemen Mutu</option><option>Sertifikasi</option><option>SDM</option><option>K3</option>
+        </select>
+      </div>
+      <div class="field" style="grid-column:span 2">
+        <label>Judul Dokumen</label>
+        <input id="ndJudul" placeholder="Judul lengkap dokumen...">
+      </div>
+      <div class="field">
+        <label>Kode Dokumen (auto)</label>
+        <input id="ndKode" readonly>
+      </div>
+      <div class="field">
+        <label>Siklus Review</label>
+        <select id="ndSiklus">
+          <option>1 tahun</option><option selected>2 tahun</option><option>3 tahun</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeNewDoc()">Batal</button>
+      <button class="btn btn-primary" onclick="createNewDoc()">Buat & Buka Editor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD REF MODAL ══ -->
+<div class="overlay" id="addRefOverlay" onclick="if(event.target===this)closeAddRef()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">➕ Tambah Referensi Baru</div>
+      <button class="modal-close" onclick="closeAddRef()">×</button>
+    </div>
+    <div class="field"><label>Kategori</label>
+      <select id="arKat"><option>Regulasi</option><option>Standar</option><option>Internal</option></select>
+    </div>
+    <div class="field"><label>Nomor / Kode</label><input id="arNomor" placeholder="Mis. ISO 45001:2018 atau Permenaker No.5/2018"></div>
+    <div class="field"><label>Judul / Nama</label><input id="arJudul" placeholder="Judul lengkap referensi..."></div>
+    <div class="field"><label>Deskripsi Singkat</label><input id="arDesc" placeholder="Topik atau cakupan..."></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAddRef()">Batal</button>
+      <button class="btn btn-primary" onclick="saveNewRef()">Simpan Referensi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REVIEW/REJECT MODAL ══ -->
+<div class="overlay" id="reviewOverlay" onclick="if(event.target===this)closeReview()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="reviewModalTitle">Review Dokumen</div>
+      <button class="modal-close" onclick="closeReview()">×</button>
+    </div>
+    <div class="field"><label>Catatan</label><textarea id="reviewNote" placeholder="Catatan review atau alasan penolakan..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeReview()">Batal</button>
+      <button class="btn btn-danger" id="btnReject" onclick="doReject()">↩ Kembalikan</button>
+      <button class="btn btn-green" id="btnApprove" onclick="doApprove()">✅ Setujui</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SEARCH RESULTS ══ -->
+<div class="overlay" id="searchOverlay" onclick="if(event.target===this)closeSearch()">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div class="modal-title">🔍 Hasil Pencarian</div>
+      <button class="modal-close" onclick="closeSearch()">×</button>
+    </div>
+    <div id="searchResults" style="max-height:400px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   DATA LAYER — localStorage-backed in-memory store
+═══════════════════════════════════════════════════════════════ */
+
+const STORE_KEY = 'edms_v1';
+
+function getStore() {
+  const raw = localStorage.getItem(STORE_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+function saveStore(s) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(s));
+}
+function initStore() {
+  const now = new Date();
+  const ts = (offset=0) => new Date(now.getTime() - offset * 86400000).toISOString();
+  const db = {
+    users: [
+      { id:'u1', name:'Fakhri',        role:'Penyusun Dokumen',  initials:'FK' },
+      { id:'u2', name:'Sari',          role:'Tim Mutu',           initials:'SR' },
+      { id:'u3', name:'Riko Ahmad',    role:'Manager Bidang',     initials:'RA' },
+      { id:'u4', name:'Budi Hartono',  role:'Pimpinan Unit',      initials:'BH' },
+      { id:'u5', name:'Admin',         role:'Admin Sistem',       initials:'AD' },
+    ],
+    references: [
+      { id:'r1', kat:'Regulasi', nomor:'Permenaker No. 5/2018', judul:'Keselamatan dan Kesehatan Kerja Lingkungan Kerja', desc:'K3 Lingkungan Kerja', usedBy:['d1','d3','d4','d5'] },
+      { id:'r2', kat:'Standar',  nomor:'ISO/IEC 17024:2012',   judul:'Penilaian Kesesuaian — Persyaratan Umum Lembaga Sertifikasi Personel', desc:'Sertifikasi personel', usedBy:['d1','d2','d3','d4','d5','d6','d7','d8','d9'] },
+      { id:'r3', kat:'Standar',  nomor:'ISO 9001:2015',         judul:'Sistem Manajemen Mutu', desc:'SMM berbasis risiko', usedBy:['d1','d2','d3','d4','d5','d6','d7','d8','d9','d10','d11','d12'] },
+      { id:'r4', kat:'Internal', nomor:'MAN.MUTU.UPS.2025.00', judul:'Manual Mutu Terintegrasi v2.1', desc:'Panduan sistem manajemen terintegrasi UPS', usedBy:['d1','d3','d5','d6','d7'] },
+      { id:'r5', kat:'Regulasi', nomor:'Peraturan BNSP No. 2/2017', judul:'Pedoman Sertifikasi Kompetensi', desc:'Persyaratan LSP', usedBy:['d2','d3','d5','d6','d7','d10','d11'] },
+      { id:'r6', kat:'Standar',  nomor:'ISO 45001:2018',        judul:'Sistem Manajemen Keselamatan dan Kesehatan Kerja', desc:'OH&S Management', usedBy:['d4','d5'] },
+      { id:'r7', kat:'Regulasi', nomor:'PP No. 50/2012',        judul:'Penerapan SMK3', desc:'Sistem Manajemen Keselamatan Kerja', usedBy:['d4'] },
+    ],
+    documents: [
+      {
+        id:'d1', kode:'SOP.UPS.05.2026', judul:'Prosedur Penanganan Temuan Audit Internal',
+        bidang:'Manajemen Mutu', jenis:'SOP/Prosedur', versi:'3.0', status:'Menunggu Approval',
+        penyusun:'u1', siklus:'2 tahun', reviewBerikut:'Sep 2028',
+        createdAt: ts(7), updatedAt: ts(1),
+        refs: ['r1','r2','r4'],
+        sections: {
+          tujuan: 'Mengatur mekanisme tindak lanjut atas temuan audit internal agar setiap ketidaksesuaian ditangani secara tepat waktu dan terdokumentasi.',
+          ruangLingkup: 'Berlaku untuk seluruh bidang di lingkungan PLN UP Sertifikasi yang menjadi objek audit internal maupun eksternal (BNSP, KAN, DJK).',
+          definisi: 'Temuan Audit: Hasil audit yang mengidentifikasi ketidaksesuaian.\nCAPA: Corrective Action and Preventive Action.\nAuditee: Pihak yang diaudit.',
+          prosedur: '1. Auditee menerima laporan temuan dari tim audit.\n2. Auditee menyusun rencana tindak lanjut (CAPA) maksimal 5 hari kerja.\n3. Manager Bidang meninjau dan menyetujui rencana tindak lanjut.\n4. Tim Mutu memverifikasi bukti penyelesaian.\n5. Temuan ditutup dan dicatat pada log dokumen.',
+          lampiran: 'Form CAPA-01: Formulir Rencana Tindak Lanjut\nForm CAPA-02: Formulir Verifikasi Penutupan Temuan',
+        },
+        workflow: {
+          stage: 3, // 0=draft, 1=review, 2=mgr-approval, 3=pimpinan-approval, 4=aktif
+          reviewedBy: 'u2', reviewedAt: ts(5), reviewNote: 'Disetujui, tidak ada catatan.',
+          mgrApprovedBy: null, mgrApprovedAt: null, mgrNote: null,
+          mgrSignature: null,
+          pimpinanApprovedBy: null, pimpinanApprovedAt: null, pimpinanNote: null,
+          pimpinanSignature: null,
+        },
+        versions: [
+          { ver:'2.0', status:'Aktif', desc:'Berlaku sejak Jan 2025, akan digantikan setelah v3.0 disahkan', date: ts(240) },
+          { ver:'1.0', status:'Obsolete', desc:'Diterbitkan 2022, digantikan Jan 2025', date: ts(730) },
+        ],
+        auditRef: 'AF-2026-014 (BNSP)',
+        ackTotal: 24, ackDone: 18,
+      },
+      {
+        id:'d2', kode:'MAN.MUTU.UPS.2025.00', judul:'Manual Mutu Terintegrasi',
+        bidang:'Manajemen Mutu', jenis:'Manual Mutu', versi:'2.1', status:'Aktif',
+        penyusun:'u1', siklus:'2 tahun', reviewBerikut:'Mar 2027',
+        createdAt: ts(400), updatedAt: ts(60),
+        refs: ['r2','r3','r5'],
+        sections: {
+          tujuan: 'Menyediakan panduan sistem manajemen terintegrasi PLN UP Sertifikasi mencakup ISO 9001, ISO/IEC 17024, dan ISO 45001.',
+          ruangLingkup: 'Berlaku untuk seluruh kegiatan operasional PLN UP Sertifikasi.',
+          definisi: 'SMT: Sistem Manajemen Terintegrasi.\nLSP: Lembaga Sertifikasi Profesi.\nUPS: UP Sertifikasi.',
+          prosedur: '1. Kebijakan mutu ditetapkan oleh Pimpinan Unit.\n2. Sasaran mutu dirumuskan per bidang setiap awal tahun.\n3. Tinjauan manajemen dilaksanakan minimal 1x per tahun.\n4. Audit internal dilaksanakan minimal 1x per tahun per klausul.',
+          lampiran: '',
+        },
+        workflow: { stage: 4, reviewedBy:'u2', mgrApprovedBy:'u3', pimpinanApprovedBy:'u4', mgrSignature:'data:image/png;base64,mock', pimpinanSignature:'data:image/png;base64,mock' },
+        versions: [
+          { ver:'2.0', status:'Obsolete', desc:'Diterbitkan 2023', date: ts(400) },
+          { ver:'1.0', status:'Obsolete', desc:'Diterbitkan 2021', date: ts(900) },
+        ],
+        auditRef: '',
+        ackTotal: 24, ackDone: 24,
+      },
+      {
+        id:'d3', kode:'SOP.UPS.02.2024', judul:'Pelaksanaan Asesmen Kompetensi',
+        bidang:'Sertifikasi', jenis:'SOP/Prosedur', versi:'4.2', status:'Aktif',
+        penyusun:'u1', siklus:'2 tahun', reviewBerikut:'Nov 2026',
+        createdAt: ts(500), updatedAt: ts(30),
+        refs: ['r2','r3','r4','r5'],
+        sections: {
+          tujuan: 'Mengatur tata cara pelaksanaan asesmen kompetensi peserta uji oleh asesOr.',
+          ruangLingkup: 'Berlaku untuk seluruh skema sertifikasi yang diselenggarakan PLN UP Sertifikasi.',
+          definisi: 'Asesor: Personel yang kompeten melakukan asesmen.\nAsesi: Peserta yang diuji.\nTUK: Tempat Uji Kompetensi.',
+          prosedur: '1. Penjadwalan asesmen dikoordinasikan oleh Bidang Sertifikasi.\n2. Asesee dipanggil dan diverifikasi identitasnya.\n3. Asesmen dilaksanakan sesuai metode yang ditetapkan.\n4. Asesor mengisi form penilaian dan memberikan rekomendasi.\n5. Hasil asesmen direkap dan dilaporkan ke Ketua LSP.',
+          lampiran: 'Form ASS-01: Bukti Asesmen\nForm ASS-02: Rekap Hasil Asesmen',
+        },
+        workflow: { stage: 4, reviewedBy:'u2', mgrApprovedBy:'u3', pimpinanApprovedBy:'u4', mgrSignature:'data:image/png;base64,mock', pimpinanSignature:'data:image/png;base64,mock' },
+        versions: [
+          { ver:'4.1', status:'Obsolete', desc:'Diterbitkan 2023', date: ts(365) },
+        ],
+        auditRef: '',
+        ackTotal: 15, ackDone: 12,
+      },
+      {
+        id:'d4', kode:'FORM.UPS.11.2023', judul:'Formulir Verifikasi TUK',
+        bidang:'Sertifikasi', jenis:'Formulir Kerja', versi:'1.3', status:'Draft',
+        penyusun:'u1', siklus:'1 tahun', reviewBerikut:'—',
+        createdAt: ts(20), updatedAt: ts(2),
+        refs: ['r1','r6','r7'],
+        sections: {
+          tujuan: 'Formulir untuk verifikasi kelayakan Tempat Uji Kompetensi (TUK) sebelum pelaksanaan asesmen.',
+          ruangLingkup: 'Digunakan oleh asesor saat inspeksi TUK.',
+          definisi: 'TUK: Tempat Uji Kompetensi yang telah diverifikasi LSP.',
+          prosedur: 'Isi setiap kolom sesuai kondisi aktual TUK yang diinspeksi.',
+          lampiran: '',
+        },
+        workflow: { stage: 0 },
+        versions: [],
+        auditRef: '',
+        ackTotal: 0, ackDone: 0,
+      },
+      {
+        id:'d5', kode:'SOP.UPS.01.2022', judul:'Pengendalian Dokumen & Rekaman',
+        bidang:'Manajemen Mutu', jenis:'SOP/Prosedur', versi:'2.0', status:'Obsolete',
+        penyusun:'u1', siklus:'2 tahun', reviewBerikut:'—',
+        createdAt: ts(900), updatedAt: ts(400),
+        refs: ['r1','r2','r3','r4','r5'],
+        sections: {
+          tujuan: 'Mengatur tata cara pengendalian, distribusi, dan penarikan dokumen mutu.',
+          ruangLingkup: 'Seluruh dokumen mutu yang beredar di lingkungan PLN UP Sertifikasi.',
+          definisi: 'Dokumen Terkendali: Dokumen yang terdaftar dan distribusinya dikendalikan.',
+          prosedur: '1. Dokumen baru diberi kode dan didaftarkan ke register.\n2. Dokumen didistribusikan dengan tanda terima.\n3. Revisi dokumen mengikuti prosedur ini.\n4. Dokumen lama ditarik saat dokumen baru diterbitkan.',
+          lampiran: '',
+        },
+        workflow: { stage: 4, reviewedBy:'u2', mgrApprovedBy:'u3', pimpinanApprovedBy:'u4' },
+        versions: [
+          { ver:'1.0', status:'Obsolete', desc:'Diterbitkan 2020', date: ts(900) },
+        ],
+        auditRef: '',
+        ackTotal: 24, ackDone: 24,
+      },
+      {
+        id:'d6', kode:'SOP.UPS.03.2026', judul:'Pengelolaan Keluhan Peserta Sertifikasi',
+        bidang:'Sertifikasi', jenis:'SOP/Prosedur', versi:'1.0', status:'Review',
+        penyusun:'u1', siklus:'2 tahun', reviewBerikut:'—',
+        createdAt: ts(10), updatedAt: ts(3),
+        refs: ['r2','r3','r4','r5'],
+        sections: {
+          tujuan: 'Mengatur mekanisme penerimaan, pencatatan, dan tindak lanjut keluhan peserta sertifikasi.',
+          ruangLingkup: 'Berlaku untuk semua keluhan yang masuk terkait layanan sertifikasi.',
+          definisi: 'Keluhan: Ekspresi ketidakpuasan yang disampaikan oleh peserta.',
+          prosedur: '1. Keluhan diterima dan dicatat dalam log keluhan.\n2. Bidang Sertifikasi memverifikasi keluhan dalam 3 hari kerja.\n3. Tindak lanjut ditetapkan dan dilaksanakan.\n4. Peserta diberikan jawaban dalam 14 hari kerja.',
+          lampiran: '',
+        },
+        workflow: { stage: 1, reviewedBy: null },
+        versions: [],
+        auditRef: '',
+        ackTotal: 0, ackDone: 0,
+      },
+    ],
+    auditLog: [
+      { id:'a1', ts: ts(7), user:'Fakhri', type:'CREATE', docId:'d1', note:'Dokumen baru dibuat' },
+      { id:'a2', ts: ts(6), user:'Fakhri', type:'SUBMIT', docId:'d1', note:'Diajukan untuk review Tim Mutu' },
+      { id:'a3', ts: ts(5), user:'Sari',   type:'REVIEW', docId:'d1', note:'Disetujui, tidak ada catatan' },
+      { id:'a4', ts: ts(10), user:'Fakhri', type:'CREATE', docId:'d6', note:'Dokumen baru dibuat' },
+      { id:'a5', ts: ts(3), user:'Fakhri', type:'SUBMIT', docId:'d6', note:'Diajukan untuk review Tim Mutu' },
+      { id:'a6', ts: ts(20), user:'Fakhri', type:'CREATE', docId:'d4', note:'Dokumen baru dibuat' },
+      { id:'a7', ts: ts(400), user:'Fakhri', type:'PUBLISH', docId:'d2', note:'Dokumen terbit & aktif v2.1' },
+      { id:'a8', ts: ts(30), user:'Fakhri', type:'PUBLISH', docId:'d3', note:'Dokumen terbit & aktif v4.2' },
+    ],
+    session: null,
+    autoDocCounter: 7,
+    autoRefCounter: 8,
+    autoLogCounter: 9,
+  };
+  saveStore(db);
+  return db;
+}
+
+let DB = getStore() || initStore();
+
+function saveDB() { saveStore(DB); }
+function addLog(type, docId, note) {
+  DB.auditLog.unshift({
+    id: 'a' + (DB.autoLogCounter++),
+    ts: new Date().toISOString(),
+    user: DB.session?.name || '?',
+    type, docId, note
+  });
+  saveDB();
+}
+function getDoc(id) { return DB.documents.find(d => d.id === id); }
+function getRef(id) { return DB.references.find(r => r.id === id); }
+function getUser(id) { return DB.users.find(u => u.id === id); }
+
+/* ═══════════════════════════════════════════════
+   SESSION & LOGIN
+═══════════════════════════════════════════════ */
+let currentDocId = null;
+let sigPad = null;
+let sigTarget = null; // 'mgr' or 'pimpinan'
+let reviewActionType = null;
+let autosaveTimer = null;
+
+function doLogin() {
+  const val = document.getElementById('loginUser').value;
+  const [name, role] = val.split('|');
+  DB.session = { name, role };
+  saveDB();
+  addLog('LOGIN', null, 'Login ke sistem');
+  document.getElementById('login-screen').classList.add('hidden');
+  applySession();
+  gotoScreen('dashboard');
+  showNotif('Selamat datang, ' + name + '! 👋');
+}
+function doLogout() {
+  DB.session = null;
+  saveDB();
+  location.reload();
+}
+function applySession() {
+  const s = DB.session;
+  if (!s) return;
+  document.getElementById('userName').textContent = s.name;
+  document.getElementById('userRole').textContent = s.role;
+  document.getElementById('userAvatar').textContent = s.name.charAt(0).toUpperCase();
+  document.getElementById('dashWelcome').textContent = s.name;
+
+  // Role-based visibility
+  const isPenyusun  = ['Penyusun Dokumen', 'Admin Sistem'].includes(s.role);
+  const isAdmin     = s.role === 'Admin Sistem';
+  const isApprover  = ['Manager Bidang','Pimpinan Unit','Tim Mutu','Admin Sistem'].includes(s.role);
+
+  document.getElementById('nav-editor').style.display = isPenyusun ? '' : 'none';
+  document.getElementById('nav-audit').style.display = isAdmin ? '' : '';
+  document.getElementById('btnNewDoc').style.display = isPenyusun ? '' : 'none';
+  document.getElementById('btnAddRef').style.display = isAdmin ? '' : 'none';
+}
+
+/* ═══════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════ */
+const SCREEN_TITLES = {
+  dashboard: 'Dashboard',
+  register:  'Daftar Dokumen',
+  editor:    'Editor Dokumen',
+  approval:  'Approval & Tanda Tangan',
+  pdf:       'Preview PDF',
+  manage:    'Manajemen Dokumen',
+  refmaster: 'Master Referensi',
+  auditlog:  'Audit Log',
+};
+function gotoScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.screen === id));
+  const screen = document.getElementById('screen-' + id);
+  if (screen) screen.classList.add('active');
+  document.getElementById('topbarTitle').textContent = SCREEN_TITLES[id] || id;
+  // Render screens
+  if (id === 'dashboard')  renderDashboard();
+  if (id === 'register')   renderRegister();
+  if (id === 'approval')   renderApproval();
+  if (id === 'manage')     renderManageTree();
+  if (id === 'refmaster')  renderRefMaster();
+  if (id === 'auditlog')   renderAuditLog();
+  updateNavBadges();
+}
+function updateNavBadges() {
+  const pending = DB.documents.filter(d => ['Review','Menunggu Approval'].includes(d.status)).length;
+  const nb = document.getElementById('nb-approval');
+  if (pending > 0) { nb.style.display = ''; nb.textContent = pending; }
+  else nb.style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════ */
+function renderDashboard() {
+  const docs = DB.documents;
+  const aktif   = docs.filter(d => d.status === 'Aktif').length;
+  const draft   = docs.filter(d => d.status === 'Draft').length;
+  const pending = docs.filter(d => ['Review','Menunggu Approval'].includes(d.status)).length;
+  const obs     = docs.filter(d => d.status === 'Obsolete').length;
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card" onclick="gotoScreen('register')">
+      <div class="stat-icon">📄</div>
+      <div class="stat-value">${docs.length}</div>
+      <div class="stat-label">Total Dokumen</div>
+      <div class="stat-accent" style="background:var(--navy)"></div>
+    </div>
+    <div class="stat-card" onclick="gotoScreen('register')" style="cursor:pointer">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value">${aktif}</div>
+      <div class="stat-label">Dokumen Aktif</div>
+      <div class="stat-accent" style="background:var(--green)"></div>
+    </div>
+    <div class="stat-card" onclick="gotoScreen('approval')">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-value">${pending}</div>
+      <div class="stat-label">Menunggu Approval</div>
+      <div class="stat-accent" style="background:var(--amber)"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📝</div>
+      <div class="stat-value">${draft}</div>
+      <div class="stat-label">Masih Draft</div>
+      <div class="stat-accent" style="background:var(--ink-muted)"></div>
+    </div>
+  `;
+
+  // Notifications
+  const notifList = document.getElementById('dashNotifList');
+  const soon = docs.filter(d => d.status === 'Aktif' && d.reviewBerikut && d.reviewBerikut !== '—');
+  const waitApproval = docs.filter(d => d.status === 'Menunggu Approval');
+  const waitReview   = docs.filter(d => d.status === 'Review');
+  let html = '';
+  waitApproval.forEach(d => {
+    html += `<div class="notif-item" onclick="gotoScreen('approval')">
+      <div class="notif-dot" style="background:var(--amber)"></div>
+      <div><div class="notif-text">⏳ <b>${d.kode}</b> menunggu approval</div><div class="notif-time">${d.judul}</div></div>
+    </div>`;
+  });
+  waitReview.forEach(d => {
+    html += `<div class="notif-item" onclick="gotoScreen('approval')">
+      <div class="notif-dot" style="background:var(--navy)"></div>
+      <div><div class="notif-text">👁 <b>${d.kode}</b> menunggu review Tim Mutu</div><div class="notif-time">${d.judul}</div></div>
+    </div>`;
+  });
+  soon.slice(0,3).forEach(d => {
+    html += `<div class="notif-item" onclick="gotoScreen('manage')">
+      <div class="notif-dot" style="background:var(--green)"></div>
+      <div><div class="notif-text">📅 Review berikutnya: <b>${d.reviewBerikut}</b></div><div class="notif-time">${d.kode} — ${d.judul}</div></div>
+    </div>`;
+  });
+  if (!html) html = '<div style="padding:20px;text-align:center;color:var(--ink-muted);font-size:13px">Tidak ada item yang perlu perhatian 🎉</div>';
+  notifList.innerHTML = html;
+
+  // Activity
+  const actEl = document.getElementById('activityList');
+  const icons = { CREATE:'📝', SUBMIT:'📤', REVIEW:'👁', APPROVE:'✅', REJECT:'↩', PUBLISH:'🎉', GENERATE:'🖨️', LOGIN:'🔐' };
+  const colors = { CREATE:'#EFF3FF', SUBMIT:'#FFF8EC', REVIEW:'#EFF3FF', APPROVE:'#EDFAF4', REJECT:'#FFF0EE', PUBLISH:'#EDFAF4', GENERATE:'#F5F0FF', LOGIN:'var(--paper)' };
+  actEl.innerHTML = DB.auditLog.slice(0,8).map(a => {
+    const doc = a.docId ? getDoc(a.docId) : null;
+    return `<div class="activity-item">
+      <div class="act-icon" style="background:${colors[a.type]}">${icons[a.type]||'📋'}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;color:var(--ink)">${a.user}</div>
+        <div style="color:var(--ink-soft)">${a.note}${doc?` — ${doc.kode}`:''}</div>
+      </div>
+      <div style="font-size:11px;color:var(--ink-muted)">${fmtDate(a.ts)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   DOCUMENT REGISTER
+═══════════════════════════════════════════════ */
+function renderRegister() {
+  const search  = (document.getElementById('registerSearch')?.value || '').toLowerCase();
+  const bidang  = document.getElementById('filterBidang')?.value || '';
+  const status  = document.getElementById('filterStatus')?.value || '';
+
+  let docs = DB.documents.filter(d => {
+    if (bidang && d.bidang !== bidang) return false;
+    if (status && d.status !== status) return false;
+    if (search && !d.kode.toLowerCase().includes(search) && !d.judul.toLowerCase().includes(search) && !d.bidang.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('registerBody');
+  if (!docs.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--ink-muted)">Tidak ada dokumen ditemukan</td></tr>';
+    return;
+  }
+  tbody.innerHTML = docs.map(d => `
+    <tr class="row-clickable" onclick="openDocDetail('${d.id}')">
+      <td><span style="font-weight:600;font-size:12px;color:var(--navy)">${d.kode}</span></td>
+      <td>${d.judul}</td>
+      <td><span style="font-size:12px">${d.bidang}</span></td>
+      <td style="font-weight:600">v${d.versi}</td>
+      <td>${badgeStatus(d.status)}</td>
+      <td style="font-size:12px;color:var(--ink-soft)">${d.reviewBerikut || '—'}</td>
+      <td>
+        <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-xs" onclick="openDocDetail('${d.id}')">Buka</button>
+          ${['Penyusun Dokumen','Admin Sistem'].includes(DB.session?.role) && d.status==='Draft' ? `<button class="btn btn-xs btn-primary" onclick="openEditorForDoc('${d.id}')">Edit</button>` : ''}
+          ${d.status === 'Aktif' ? `<button class="btn btn-xs btn-ghost" onclick="openPdfForDoc('${d.id}')">PDF</button>` : ''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openDocDetail(id) {
+  currentDocId = id;
+  gotoScreen('manage');
+  setTimeout(() => selectDocInTree(id), 100);
+}
+function openEditorForDoc(id) {
+  currentDocId = id;
+  gotoScreen('editor');
+  loadEditorDoc(id);
+}
+function openPdfForDoc(id) {
+  currentDocId = id;
+  gotoScreen('pdf');
+  renderPdf(id);
+}
+
+/* ═══════════════════════════════════════════════
+   NEW DOCUMENT MODAL
+═══════════════════════════════════════════════ */
+function openNewDoc() {
+  autoGenKode();
+  document.getElementById('newDocOverlay').classList.add('show');
+}
+function closeNewDoc() { document.getElementById('newDocOverlay').classList.remove('show'); }
+function autoGenKode() {
+  const jenis  = document.getElementById('ndJenis')?.value || 'SOP/Prosedur';
+  const bidang = document.getElementById('ndBidang')?.value || 'Manajemen Mutu';
+  const year   = new Date().getFullYear();
+  const prefixes = { 'SOP/Prosedur':'SOP', 'Manual Mutu':'MAN.MUTU', 'Instruksi Kerja':'IK', 'Formulir Kerja':'FORM' };
+  const prefix = prefixes[jenis] || 'DOC';
+  const num = String(DB.autoDocCounter).padStart(2,'0');
+  const kode = `${prefix}.UPS.${num}.${year}`;
+  const el = document.getElementById('ndKode');
+  if (el) el.value = kode;
+}
+function createNewDoc() {
+  const judul = document.getElementById('ndJudul').value.trim();
+  if (!judul) { showNotif('Masukkan judul dokumen!', 'error'); return; }
+  const kode   = document.getElementById('ndKode').value;
+  const bidang = document.getElementById('ndBidang').value;
+  const jenis  = document.getElementById('ndJenis').value;
+  const siklus = document.getElementById('ndSiklus').value;
+  const year   = new Date().getFullYear();
+  const newDoc = {
+    id: 'd' + DB.autoDocCounter,
+    kode, judul, bidang, jenis,
+    versi: '1.0', status: 'Draft',
+    penyusun: 'u1',
+    siklus, reviewBerikut: '—',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    refs: [],
+    sections: { tujuan:'', ruangLingkup:'', definisi:'', prosedur:'', lampiran:'' },
+    workflow: { stage: 0 },
+    versions: [],
+    auditRef: '', ackTotal: 0, ackDone: 0,
+  };
+  DB.documents.push(newDoc);
+  DB.autoDocCounter++;
+  addLog('CREATE', newDoc.id, 'Dokumen baru dibuat');
+  closeNewDoc();
+  currentDocId = newDoc.id;
+  gotoScreen('editor');
+  loadEditorDoc(newDoc.id);
+  showNotif('Dokumen baru berhasil dibuat ✅', 'success');
+}
+
+/* ═══════════════════════════════════════════════
+   EDITOR
+═══════════════════════════════════════════════ */
+const SECTIONS_CONFIG = [
+  { key: 'tujuan',      label: '1. Tujuan', placeholder: 'Jelaskan tujuan dokumen ini...' },
+  { key: 'ruangLingkup',label: '2. Ruang Lingkup', placeholder: 'Tentukan cakupan dokumen...' },
+  { key: 'definisi',    label: '3. Definisi & Istilah', placeholder: 'Daftar definisi istilah teknis...' },
+  { key: 'prosedur',    label: '4. Prosedur / Langkah Kerja', placeholder: 'Langkah-langkah pelaksanaan...' },
+  { key: 'lampiran',    label: '5. Lampiran Formulir', placeholder: 'Daftar lampiran yang terkait...' },
+];
+function loadEditorDoc(id) {
+  const doc = getDoc(id);
+  if (!doc) return;
+  document.getElementById('edKode').value  = doc.kode;
+  document.getElementById('edJudul').value = doc.judul;
+  document.getElementById('edVersi').value = 'v' + doc.versi + (doc.status === 'Draft' ? ' (draft)' : '');
+  document.getElementById('editorTitle').textContent = 'Editor — ' + doc.kode;
+  // Set bidang
+  const bidEl = document.getElementById('edBidang');
+  [...bidEl.options].forEach(o => o.selected = o.value === doc.bidang);
+  // Sections
+  const sectEl = document.getElementById('editorSections');
+  sectEl.innerHTML = SECTIONS_CONFIG.map(s => `
+    <div class="editor-section" style="margin-bottom:12px">
+      <div class="editor-section-head"><h4>${s.label}</h4></div>
+      <div class="editable-area" contenteditable="true" data-key="${s.key}"
+        placeholder="${s.placeholder}">${escHtml(doc.sections[s.key] || '')}</div>
+    </div>
+  `).join('');
+  // Ref chips
+  renderEdRefChips(doc.refs || []);
+  // Status info
+  const stageLabels = ['Draft','Menunggu Review Tim Mutu','Menunggu Approval Manager Bidang','Menunggu Approval Pimpinan','Aktif'];
+  document.getElementById('edStatusInfo').innerHTML = `
+    <b>Status:</b> ${badgeStatus(doc.status)}<br>
+    <b>Tahap:</b> ${stageLabels[doc.workflow?.stage ?? 0]}<br>
+    <b>Versi:</b> v${doc.versi}<br>
+    <b>Bidang:</b> ${doc.bidang}<br>
+    <b>Penyusun:</b> ${doc.penyusun ? getUser(doc.penyusun)?.name : '—'}<br>
+    <b>Terakhir disimpan:</b> ${fmtDate(doc.updatedAt)}
+  `;
+  // Submit button
+  const canSubmit = doc.status === 'Draft' && ['Penyusun Dokumen','Admin Sistem'].includes(DB.session?.role);
+  document.getElementById('btnSubmit').disabled = !canSubmit;
+  // Autosave
+  clearInterval(autosaveTimer);
+  autosaveTimer = setInterval(() => autoSave(id), 30000);
+}
+function renderEdRefChips(refIds) {
+  const chips = document.getElementById('edRefChips');
+  chips.innerHTML = refIds.map(rid => {
+    const ref = getRef(rid);
+    if (!ref) return '';
+    return `<div class="ref-chip" data-ref="${rid}">
+      <span class="rtype">${ref.kat}</span> ${ref.nomor}
+      <span class="x" onclick="removeEdRef('${rid}')">✕</span>
+    </div>`;
+  }).join('');
+}
+function removeEdRef(rid) {
+  const doc = getDoc(currentDocId);
+  if (!doc) return;
+  doc.refs = doc.refs.filter(r => r !== rid);
+  saveDB();
+  renderEdRefChips(doc.refs);
+}
+function collectEditorData() {
+  const doc = getDoc(currentDocId);
+  if (!doc) return;
+  doc.judul  = document.getElementById('edJudul').value.trim() || doc.judul;
+  doc.bidang = document.getElementById('edBidang').value;
+  SECTIONS_CONFIG.forEach(s => {
+    const el = document.querySelector(`.editable-area[data-key="${s.key}"]`);
+    if (el) doc.sections[s.key] = el.innerText.trim();
+  });
+  doc.updatedAt = new Date().toISOString();
+}
+function autoSave(id) {
+  collectEditorData();
+  saveDB();
+  document.getElementById('autosaveStatus').textContent = '● Disimpan otomatis ' + fmtTime(new Date());
+}
+function saveDraft() {
+  collectEditorData();
+  saveDB();
+  showNotif('Draft berhasil disimpan 💾', 'success');
+  document.getElementById('autosaveStatus').textContent = '● Tersimpan ' + fmtTime(new Date());
+}
+function submitForReview() {
+  collectEditorData();
+  const doc = getDoc(currentDocId);
+  if (!doc) return;
+  if (!doc.judul) { showNotif('Isi judul dokumen terlebih dahulu!', 'error'); return; }
+  doc.status = 'Review';
+  doc.workflow.stage = 1;
+  doc.updatedAt = new Date().toISOString();
+  addLog('SUBMIT', doc.id, 'Diajukan untuk review Tim Mutu');
+  saveDB();
+  showNotif('Dokumen berhasil diajukan untuk review ✅', 'success');
+  gotoScreen('register');
+}
+
+/* ═══════════════════════════════════════════════
+   REF PICKER
+═══════════════════════════════════════════════ */
+function openRefPicker() {
+  document.getElementById('pickerSearch').value = '';
+  renderPickerList();
+  document.getElementById('refPickerOverlay').classList.add('show');
+}
+function closeRefPicker() { document.getElementById('refPickerOverlay').classList.remove('show'); }
+function renderPickerList() {
+  const q = document.getElementById('pickerSearch').value.toLowerCase();
+  const doc = getDoc(currentDocId);
+  const existingRefs = doc?.refs || [];
+  const filtered = DB.references.filter(r =>
+    !q || r.nomor.toLowerCase().includes(q) || r.judul.toLowerCase().includes(q) || r.kat.toLowerCase().includes(q)
+  );
+  document.getElementById('pickerList').innerHTML = filtered.map(r => {
+    const added = existingRefs.includes(r.id);
+    return `<div class="notif-item" style="cursor:default;border:none;border-bottom:1px solid var(--paper-line);border-radius:0;padding:12px 4px">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px">${r.nomor}</div>
+        <div style="font-size:12px;color:var(--ink-soft)">${r.kat} · ${r.judul}</div>
+      </div>
+      <button class="btn btn-sm ${added?'btn-ghost':'btn-primary'}" ${added?'disabled':''} onclick="addRefFromPicker('${r.id}', this)">
+        ${added ? '✓ Tertaut' : '+ Tautkan'}
+      </button>
+    </div>`;
+  }).join('');
+}
+function addRefFromPicker(rid, btn) {
+  const doc = getDoc(currentDocId);
+  if (!doc) return;
+  if (!doc.refs.includes(rid)) doc.refs.push(rid);
+  saveDB();
+  renderEdRefChips(doc.refs);
+  btn.textContent = '✓ Tertaut'; btn.disabled = true;
+  btn.className = 'btn btn-sm btn-ghost';
+}
+
+/* ═══════════════════════════════════════════════
+   APPROVAL
+═══════════════════════════════════════════════ */
+function renderApproval() {
+  const role = DB.session?.role;
+  const eligible = DB.documents.filter(d => {
+    if (role === 'Tim Mutu' && d.status === 'Review') return true;
+    if (role === 'Manager Bidang' && d.status === 'Menunggu Approval' && d.workflow?.stage === 2) return true;
+    if (role === 'Pimpinan Unit' && d.status === 'Menunggu Approval' && d.workflow?.stage === 3) return true;
+    if (role === 'Admin Sistem') return ['Review','Menunggu Approval'].includes(d.status);
+    return false;
+  });
+
+  const selectEl = document.getElementById('approvalDocSelect');
+  if (!eligible.length) {
+    selectEl.innerHTML = `<div style="padding:24px;background:var(--card);border:1px solid var(--paper-line);border-radius:var(--r-lg);text-align:center;color:var(--ink-soft)">
+      <div style="font-size:40px;margin-bottom:10px">✅</div>
+      <div style="font-size:14px">Tidak ada dokumen yang perlu diapproval oleh Anda saat ini.</div>
+    </div>`;
+    document.getElementById('approvalContent').innerHTML = '';
+    return;
+  }
+
+  let selId = currentDocId && eligible.find(d => d.id === currentDocId) ? currentDocId : eligible[0].id;
+  selectEl.innerHTML = `
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);display:block;margin-bottom:6px">Pilih Dokumen</label>
+      <select class="btn btn-ghost" onchange="currentDocId=this.value;renderApprovalDetail()" id="approvalDocSel">
+        ${eligible.map(d => `<option value="${d.id}" ${d.id===selId?'selected':''}>${d.kode} — ${d.judul} [${d.status}]</option>`).join('')}
+      </select>
+    </div>
+  `;
+  currentDocId = selId;
+  renderApprovalDetail();
+}
+function renderApprovalDetail() {
+  const selEl = document.getElementById('approvalDocSel');
+  if (selEl) currentDocId = selEl.value;
+  const doc = getDoc(currentDocId);
+  if (!doc) return;
+  const role = DB.session?.role;
+  const wf = doc.workflow;
+
+  const stageStatus = (stageNum) => {
+    if (stageNum < (wf.stage||0)) return 'tl-done';
+    if (stageNum === (wf.stage||0)) return 'tl-current';
+    return '';
+  };
+
+  const canReview  = role === 'Tim Mutu' && doc.status === 'Review';
+  const canMgr     = (role === 'Manager Bidang' || role === 'Admin Sistem') && doc.status === 'Menunggu Approval' && wf.stage === 2;
+  const canPimpinan= (role === 'Pimpinan Unit'  || role === 'Admin Sistem') && doc.status === 'Menunggu Approval' && wf.stage === 3;
+
+  document.getElementById('approvalContent').innerHTML = `
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:11px;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:4px">${doc.kode} · v${doc.versi}</div>
+        <div style="font-family:var(--serif);font-size:18px;font-weight:600;margin-bottom:20px">${doc.judul}</div>
+        <ul class="timeline">
+          <li class="${stageStatus(0)} tl-done"><div class="tl-title">Draft dibuat</div><div class="tl-sub">${getUser(doc.penyusun)?.name||'—'} · ${fmtDate(doc.createdAt)}</div></li>
+          <li class="${wf.stage>=1?'tl-done':wf.stage===1?'tl-current':''}"><div class="tl-title">Review Tim Mutu</div>
+            <div class="tl-sub">${wf.reviewedBy ? getUser(wf.reviewedBy)?.name+' · '+fmtDate(wf.reviewedAt)+(wf.reviewNote?' — '+wf.reviewNote:'') : 'Menunggu'}</div></li>
+          <li class="${wf.stage>=2?'tl-done':wf.stage===2?'tl-current':''}"><div class="tl-title">Approval Manager Bidang</div>
+            <div class="tl-sub">${wf.mgrApprovedBy ? getUser(wf.mgrApprovedBy)?.name+' · '+fmtDate(wf.mgrApprovedAt) : 'Menunggu'}</div></li>
+          <li class="${wf.stage>=3?'tl-done':wf.stage===3?'tl-current':''}"><div class="tl-title">Approval Pimpinan Unit</div>
+            <div class="tl-sub">${wf.pimpinanApprovedBy ? getUser(wf.pimpinanApprovedBy)?.name+' · '+fmtDate(wf.pimpinanApprovedAt) : 'Menunggu'}</div></li>
+          <li class="${wf.stage===4?'tl-done':''}"><div class="tl-title">Terbit & Aktif</div>
+            <div class="tl-sub">Versi lama otomatis menjadi Obsolete</div></li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:13px;font-weight:700;margin-bottom:16px">Tindakan Approval</div>
+        ${canReview ? `
+          <div style="background:var(--amber-glow);border:1px solid var(--amber-light);border-radius:var(--r-md);padding:16px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 Review Tim Mutu</div>
+            <div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px">Dokumen ini perlu Anda review. Setujui untuk melanjutkan ke tahap approval Manager, atau kembalikan dengan catatan.</div>
+            <div class="field"><label>Catatan Review</label><textarea id="reviewNoteInline" placeholder="Catatan atau temuan review..." style="background:var(--card)"></textarea></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button class="btn btn-danger" onclick="doReviewAction('reject')">↩ Kembalikan ke Penyusun</button>
+              <button class="btn btn-green" onclick="doReviewAction('approve')">✅ Setujui & Teruskan</button>
+            </div>
+          </div>
+        ` : ''}
+        ${canMgr ? `
+          <div style="background:var(--amber-glow);border:1px solid var(--amber-light);border-radius:var(--r-md);padding:16px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px">✍️ Approval Manager Bidang</div>
+            <div class="field"><label>Catatan Approval</label><textarea id="mgrNoteInline" placeholder="Catatan atau persetujuan..." style="background:var(--card)"></textarea></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button class="btn btn-danger" onclick="doMgrAction('reject')">↩ Tolak</button>
+              <button class="btn btn-green" onclick="openSigModal('mgr')">✍️ Tanda Tangan & Setujui</button>
+            </div>
+          </div>
+        ` : ''}
+        ${canPimpinan ? `
+          <div style="background:var(--amber-glow);border:1px solid var(--amber-light);border-radius:var(--r-md);padding:16px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px">✍️ Approval Pimpinan Unit</div>
+            <div class="field"><label>Catatan Approval</label><textarea id="pimpinanNoteInline" placeholder="Catatan atau persetujuan final..." style="background:var(--card)"></textarea></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button class="btn btn-danger" onclick="doPimpinanAction('reject')">↩ Tolak</button>
+              <button class="btn btn-green" onclick="openSigModal('pimpinan')">✍️ Tanda Tangan & Sahkan</button>
+            </div>
+          </div>
+        ` : ''}
+        ${!canReview && !canMgr && !canPimpinan ? `
+          <div style="padding:24px;text-align:center;color:var(--ink-muted);font-size:13px">
+            Tidak ada aksi yang bisa dilakukan pada dokumen ini dengan peran Anda saat ini.
+          </div>
+        ` : ''}
+        <!-- Preview isi -->
+        <div style="margin-top:16px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">📄 Isi Dokumen</div>
+          <div style="background:var(--paper);border-radius:var(--r-md);padding:16px;font-family:var(--serif);font-size:13.5px;line-height:1.8;max-height:200px;overflow-y:auto">
+            <b>Tujuan:</b> ${doc.sections.tujuan || '—'}<br>
+            <b>Ruang Lingkup:</b> ${doc.sections.ruangLingkup || '—'}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function doReviewAction(action) {
+  const doc = getDoc(currentDocId);
+  const note = document.getElementById('reviewNoteInline')?.value || '';
+  if (action === 'approve') {
+    doc.workflow.reviewedBy  = 'u2';
+    doc.workflow.reviewedAt  = new Date().toISOString();
+    doc.workflow.reviewNote  = note;
+    doc.workflow.stage = 2;
+    doc.status = 'Menunggu Approval';
+    addLog('REVIEW', doc.id, 'Disetujui Tim Mutu' + (note ? ' — ' + note : ''));
+    showNotif('Dokumen disetujui dan diteruskan ke Manager ✅', 'success');
+  } else {
+    doc.workflow.stage = 0;
+    doc.status = 'Draft';
+    addLog('REJECT', doc.id, 'Dikembalikan Tim Mutu — ' + note);
+    showNotif('Dokumen dikembalikan ke Penyusun ↩', 'error');
+  }
+  doc.updatedAt = new Date().toISOString();
+  saveDB();
+  renderApproval();
+}
+function doMgrAction(action) {
+  const doc = getDoc(currentDocId);
+  if (action === 'reject') {
+    const note = document.getElementById('mgrNoteInline')?.value || '';
+    doc.workflow.stage = 0;
+    doc.status = 'Draft';
+    addLog('REJECT', doc.id, 'Ditolak Manager Bidang — ' + note);
+    doc.updatedAt = new Date().toISOString();
+    saveDB();
+    showNotif('Dokumen ditolak oleh Manager ↩', 'error');
+    renderApproval();
+  }
+}
+function doPimpinanAction(action) {
+  const doc = getDoc(currentDocId);
+  if (action === 'reject') {
+    const note = document.getElementById('pimpinanNoteInline')?.value || '';
+    doc.workflow.stage = 0;
+    doc.status = 'Draft';
+    addLog('REJECT', doc.id, 'Ditolak Pimpinan Unit — ' + note);
+    doc.updatedAt = new Date().toISOString();
+    saveDB();
+    showNotif('Dokumen ditolak oleh Pimpinan ↩', 'error');
+    renderApproval();
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   SIGNATURE PAD
+═══════════════════════════════════════════════ */
+function openSigModal(target) {
+  sigTarget = target;
+  document.getElementById('sigOverlay').classList.add('show');
+  document.getElementById('sigMeta').textContent =
+    `${DB.session?.name} · ${new Date().toLocaleString('id-ID')} · ${navigator.platform}`;
+  const canvas = document.getElementById('sigCanvas');
+  if (!sigPad) {
+    sigPad = new SignaturePad(canvas, { backgroundColor:'rgba(247,245,239,1)', penColor:'#1B2A4A' });
+  } else {
+    sigPad.clear();
+  }
+  // Resize canvas
+  const ratio = window.devicePixelRatio || 1;
+  const pw = canvas.parentElement.offsetWidth;
+  canvas.width  = pw * ratio;
+  canvas.height = 180 * ratio;
+  canvas.style.height = '180px';
+  canvas.getContext('2d').scale(ratio, ratio);
+  sigPad.clear();
+}
+function closeSig() { document.getElementById('sigOverlay').classList.remove('show'); }
+function clearSig() { sigPad?.clear(); }
+function confirmSig() {
+  if (!sigPad || sigPad.isEmpty()) { showNotif('Gambar tanda tangan terlebih dahulu!', 'error'); return; }
+  const sigData = sigPad.toDataURL('image/png');
+  const doc = getDoc(currentDocId);
+  const now = new Date().toISOString();
+  if (sigTarget === 'mgr') {
+    const note = document.getElementById('mgrNoteInline')?.value || '';
+    doc.workflow.mgrApprovedBy  = DB.session.name;
+    doc.workflow.mgrApprovedAt  = now;
+    doc.workflow.mgrNote        = note;
+    doc.workflow.mgrSignature   = sigData;
+    doc.workflow.stage = 3;
+    addLog('APPROVE', doc.id, 'Disetujui Manager Bidang — ' + DB.session.name);
+    showNotif('Tanda tangan Manager berhasil disimpan ✅', 'success');
+  } else if (sigTarget === 'pimpinan') {
+    const note = document.getElementById('pimpinanNoteInline')?.value || '';
+    doc.workflow.pimpinanApprovedBy = DB.session.name;
+    doc.workflow.pimpinanApprovedAt = now;
+    doc.workflow.pimpinanNote       = note;
+    doc.workflow.pimpinanSignature  = sigData;
+    doc.workflow.stage = 4;
+    doc.status = 'Aktif';
+    // Obsolete previous active version
+    const oldVerNum = parseFloat(doc.versi) - 1;
+    if (oldVerNum > 0) {
+      doc.versions.unshift({ ver: String(oldVerNum.toFixed(1)), status:'Obsolete', desc:'Digantikan oleh v'+doc.versi, date: now });
+    }
+    addLog('APPROVE', doc.id, 'Disetujui Pimpinan Unit — ' + DB.session.name);
+    addLog('PUBLISH', doc.id, 'Dokumen terbit & aktif v'+doc.versi);
+    showNotif('🎉 Dokumen resmi terbit dan aktif!', 'success');
+  }
+  doc.updatedAt = now;
+  saveDB();
+  closeSig();
+  renderApproval();
+}
+
+/* ═══════════════════════════════════════════════
+   PDF RENDER
+═══════════════════════════════════════════════ */
+function renderPdf(id) {
+  const doc = getDoc(id || currentDocId);
+  if (!doc) return;
+  const wf = doc.workflow;
+  addLog('GENERATE', doc.id, 'Generate PDF v'+doc.versi);
+  saveDB();
+
+  const sigBlock = (label, name, sigData, title) => `
+    <div class="pdf-sig-col">
+      <div class="pdf-sig-label">${label}</div>
+      <div class="pdf-sig-drawn">
+        ${sigData && sigData.length > 50 ? `<img src="${sigData}" style="max-height:50px;max-width:120px">` : '<span style="color:#ccc;font-family:var(--sans);font-size:12px">—</span>'}
+      </div>
+      <div class="pdf-sig-name-line">
+        <div class="pdf-sig-name">${name || '—'}</div>
+        <div class="pdf-sig-title">${title}</div>
+      </div>
+    </div>
+  `;
+
+  const refsHtml = (doc.refs || []).map(rid => {
+    const r = getRef(rid);
+    return r ? `<li style="font-size:12.5px;margin-bottom:3px">[${r.kat}] ${r.nomor} — ${r.judul}</li>` : '';
+  }).join('');
+
+  const pdfEl = document.getElementById('pdfContent');
+  pdfEl.innerHTML = `
+    <div class="pdf-page">
+      <div class="pdf-controlled">${doc.status === 'Aktif' ? 'CONTROLLED COPY' : 'DRAFT — BELUM RESMI'}</div>
+      <div class="pdf-kop">
+        <div class="pdf-kop-logo">⚡</div>
+        <div class="pdf-kop-text">
+          <h3>PLN UP Sertifikasi</h3>
+          <p>Sistem Manajemen Terintegrasi — Dokumen Mutu</p>
+        </div>
+      </div>
+      <table class="pdf-meta-table">
+        <tr><td>Kode Dokumen</td><td>${doc.kode}</td><td>Versi</td><td>v${doc.versi}</td></tr>
+        <tr><td>Jenis</td><td>${doc.jenis}</td><td>Status</td><td>${doc.status}</td></tr>
+        <tr><td>Bidang</td><td>${doc.bidang}</td><td>Berlaku Sejak</td><td>${fmtDate(doc.updatedAt)}</td></tr>
+      </table>
+      <div class="pdf-title">${doc.judul}</div>
+      <div class="pdf-body">
+        <h4>1. Tujuan</h4><p>${doc.sections.tujuan || '—'}</p>
+        <h4>2. Ruang Lingkup</h4><p>${doc.sections.ruangLingkup || '—'}</p>
+        ${doc.sections.definisi ? `<h4>3. Definisi</h4><p>${doc.sections.definisi.replace(/\n/g,'<br>')}</p>` : ''}
+        ${doc.sections.prosedur ? `<h4>4. Prosedur</h4><p>${doc.sections.prosedur.replace(/\n/g,'<br>')}</p>` : ''}
+        ${refsHtml ? `<h4>Referensi Dokumen</h4><ul style="padding-left:18px;margin:0">${refsHtml}</ul>` : ''}
+        ${doc.sections.lampiran ? `<h4>Lampiran</h4><p>${doc.sections.lampiran.replace(/\n/g,'<br>')}</p>` : ''}
+      </div>
+      <div class="pdf-sig-block">
+        ${sigBlock('Disiapkan oleh', getUser(doc.penyusun)?.name, null, 'Penyusun Dokumen')}
+        ${sigBlock('Menyetujui', wf.mgrApprovedBy, wf.mgrSignature, 'Manager Bidang')}
+        ${sigBlock('Mengesahkan', wf.pimpinanApprovedBy, wf.pimpinanSignature, 'Pimpinan Unit')}
+        <div class="pdf-sig-col">
+          <div class="pdf-qr"></div>
+          <div style="font-size:10px;color:var(--ink-muted);text-align:center;margin-top:4px">Kode Verifikasi</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════
+   MANAGE TREE
+═══════════════════════════════════════════════ */
+function renderManageTree() {
+  const q = (document.getElementById('manageSearch')?.value || '').toLowerCase();
+  const bidangs = [...new Set(DB.documents.map(d => d.bidang))];
+  const treeEl = document.getElementById('manageTree');
+  treeEl.innerHTML = bidangs.map(b => {
+    const docs = DB.documents.filter(d => d.bidang === b && (!q || d.kode.toLowerCase().includes(q) || d.judul.toLowerCase().includes(q)));
+    return `<div class="tree-group">
+      <div class="tree-group-head" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="chev">▾</span> ${b}
+        <span style="margin-left:auto;color:var(--ink-muted);font-weight:400;font-size:12px">${docs.length}</span>
+      </div>
+      <div class="tree-children">
+        ${docs.map(d => `<div class="tree-item ${d.id===currentDocId?'selected':''}" data-id="${d.id}" onclick="selectTreeDoc('${d.id}')">
+          <span class="dot dot-${dotClass(d.status)}"></span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.kode} — ${d.judul}</span>
+        </div>`).join('')}
+        ${!docs.length ? '<div style="padding:10px 14px;font-size:12px;color:var(--ink-muted)">—</div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+  if (currentDocId) setTimeout(() => renderDocDetail(currentDocId), 50);
+}
+function dotClass(status) {
+  const map = { 'Aktif':'aktif','Draft':'draft','Review':'review','Menunggu Approval':'approval','Obsolete':'obsolete' };
+  return map[status] || 'draft';
+}
+function selectTreeDoc(id) {
+  currentDocId = id;
+  document.querySelectorAll('.tree-item').forEach(el => el.classList.toggle('selected', el.dataset.id === id));
+  renderDocDetail(id);
+}
+function selectDocInTree(id) {
+  currentDocId = id;
+  renderManageTree();
+  renderDocDetail(id);
+}
+function renderDocDetail(id) {
+  const doc = getDoc(id);
+  if (!doc) return;
+  const panel = document.getElementById('docDetailPanel');
+  panel.innerHTML = `
+    <div class="doc-detail-head">
+      <div class="dcode">${doc.kode} · v${doc.versi} · <span style="color:${statusColor(doc.status)}">${doc.status}</span></div>
+      <div class="doc-detail-title">${doc.judul}</div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="showDocTab(this,'isi')">Isi Dokumen</button>
+        <button class="tab-btn" onclick="showDocTab(this,'riwayat')">Riwayat Versi</button>
+        <button class="tab-btn" onclick="showDocTab(this,'info')">Info & Metadata</button>
+      </div>
+    </div>
+    <div class="doc-detail-body">
+      <div class="tab-pane active" id="dpane-isi">
+        ${SECTIONS_CONFIG.map(s => doc.sections[s.key] ? `
+          <div style="margin-bottom:18px">
+            <div style="font-family:var(--serif);font-size:14.5px;font-weight:700;color:var(--navy);margin-bottom:6px">${s.label}</div>
+            <div style="font-family:var(--serif);font-size:13.5px;line-height:1.8;color:#2A2A2A">${doc.sections[s.key].replace(/\n/g,'<br>')}</div>
+          </div>
+        ` : '').join('')}
+        ${doc.refs?.length ? `
+          <div style="margin-bottom:18px">
+            <div style="font-family:var(--serif);font-size:14.5px;font-weight:700;color:var(--navy);margin-bottom:8px">Referensi Dokumen</div>
+            <div class="ref-chips">${(doc.refs||[]).map(rid=>{const r=getRef(rid);return r?`<div class="ref-chip"><span class="rtype">${r.kat}</span>${r.nomor}</div>`:''}).join('')}</div>
+          </div>
+        ` : ''}
+      </div>
+      <div class="tab-pane" id="dpane-riwayat">
+        <ul class="vhist">
+          <li>
+            <div><div class="vtag">v${doc.versi} — ${doc.status} (berjalan)</div><div class="vnote">Diperbarui ${fmtDate(doc.updatedAt)}</div></div>
+            <span class="vlink" onclick="openPdfForDoc('${doc.id}')">Lihat PDF</span>
+          </li>
+          ${(doc.versions||[]).map(v=>`<li>
+            <div><div class="vtag">v${v.ver} — ${v.status}</div><div class="vnote">${v.desc}</div></div>
+            <span class="vlink" style="color:var(--ink-muted)">Arsip</span>
+          </li>`).join('')}
+        </ul>
+        ${!(doc.versions||[]).length ? '<div style="color:var(--ink-muted);font-size:13px;padding:8px 0">Belum ada versi sebelumnya.</div>' : ''}
+      </div>
+      <div class="tab-pane" id="dpane-info">
+        <div class="meta-grid">
+          <div class="mi"><label>Pemilik Bidang</label><div class="mv">${doc.bidang}</div></div>
+          <div class="mi"><label>Penyusun</label><div class="mv">${getUser(doc.penyusun)?.name||'—'}</div></div>
+          <div class="mi"><label>Siklus Review</label><div class="mv">${doc.siklus||'—'}</div></div>
+          <div class="mi"><label>Review Berikutnya</label><div class="mv">${doc.reviewBerikut||'—'}</div></div>
+          <div class="mi"><label>Terkait Temuan Audit</label><div class="mv">${doc.auditRef||'—'}</div></div>
+          <div class="mi"><label>Dibaca / Acknowledge</label><div class="mv">${doc.ackDone} dari ${doc.ackTotal} staf</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;padding:14px 24px;border-top:1px solid var(--paper-line);background:var(--paper)">
+      <button class="btn btn-ghost btn-sm" onclick="openPdfForDoc('${doc.id}')">📑 Unduh PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(location.href+'#'+doc.id).then(()=>showNotif('Tautan disalin 📋'))">🔗 Salin Tautan</button>
+      ${['Penyusun Dokumen','Admin Sistem'].includes(DB.session?.role) && ['Draft','Aktif'].includes(doc.status) ? `<button class="btn btn-primary btn-sm" onclick="openEditorForDoc('${doc.id}')">✏️ Buka di Editor</button>` : ''}
+    </div>
+  `;
+}
+function showDocTab(btn, name) {
+  const panel = document.getElementById('docDetailPanel');
+  panel.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+  panel.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'dpane-'+name));
+}
+function statusColor(s) {
+  const m = { 'Aktif':'var(--green)', 'Draft':'var(--ink-muted)', 'Review':'var(--amber)', 'Menunggu Approval':'#C87D1E', 'Obsolete':'#999' };
+  return m[s] || 'var(--ink)';
+}
+
+/* ═══════════════════════════════════════════════
+   MASTER REFERENSI
+═══════════════════════════════════════════════ */
+function renderRefMaster() {
+  const q  = (document.getElementById('refSearch')?.value || '').toLowerCase();
+  const kat= document.getElementById('refKatFilter')?.value || '';
+  const refs = DB.references.filter(r => {
+    if (kat && r.kat !== kat) return false;
+    if (q && !r.nomor.toLowerCase().includes(q) && !r.judul.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const isAdmin = DB.session?.role === 'Admin Sistem';
+  const katColors = { 'Regulasi':'#EFF3FF', 'Standar':'#EDFAF4', 'Internal':'#FFF8EC' };
+  const katTxtColors = { 'Regulasi':'var(--navy)', 'Standar':'var(--green)', 'Internal':'#8A5E15' };
+  document.getElementById('refMasterBody').innerHTML = refs.map(r => `
+    <tr>
+      <td><span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;background:${katColors[r.kat]};color:${katTxtColors[r.kat]}">${r.kat}</span></td>
+      <td><div style="font-weight:700;font-size:13px">${r.nomor}</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">${r.judul}</div></td>
+      <td style="font-size:12px;color:var(--ink-soft)">${r.desc}</td>
+      <td><span style="background:var(--paper);color:var(--ink-mid);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${r.usedBy.length} dok.</span></td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-xs" onclick="showRefUsage('${r.id}')">Lihat pemakaian</button>
+          ${isAdmin ? `<button class="btn btn-xs btn-danger" onclick="deleteRef('${r.id}')">Hapus</button>` : ''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+function showRefUsage(rid) {
+  const ref = getRef(rid);
+  if (!ref) return;
+  const usedDocs = DB.documents.filter(d => ref.usedBy.includes(d.id));
+  showNotif(`📚 "${ref.nomor}" digunakan di ${usedDocs.length} dokumen: ${usedDocs.map(d=>d.kode).join(', ')}`);
+}
+function deleteRef(rid) {
+  if (!confirm('Hapus referensi ini? Tautan di dokumen akan rusak.')) return;
+  DB.references = DB.references.filter(r => r.id !== rid);
+  saveDB();
+  renderRefMaster();
+  showNotif('Referensi dihapus', 'error');
+}
+function openAddRef() { document.getElementById('addRefOverlay').classList.add('show'); }
+function closeAddRef() { document.getElementById('addRefOverlay').classList.remove('show'); }
+function saveNewRef() {
+  const nomor = document.getElementById('arNomor').value.trim();
+  const judul = document.getElementById('arJudul').value.trim();
+  if (!nomor || !judul) { showNotif('Isi nomor dan judul referensi!', 'error'); return; }
+  const newRef = {
+    id: 'r' + (DB.autoRefCounter++),
+    kat:   document.getElementById('arKat').value,
+    nomor, judul,
+    desc:  document.getElementById('arDesc').value.trim(),
+    usedBy: [],
+  };
+  DB.references.push(newRef);
+  saveDB();
+  closeAddRef();
+  renderRefMaster();
+  showNotif('Referensi berhasil ditambahkan ✅', 'success');
+  ['arNomor','arJudul','arDesc'].forEach(id => document.getElementById(id).value = '');
+}
+
+/* ═══════════════════════════════════════════════
+   AUDIT LOG
+═══════════════════════════════════════════════ */
+function renderAuditLog() {
+  const q    = (document.getElementById('auditSearch')?.value || '').toLowerCase();
+  const type = document.getElementById('auditTypeFilter')?.value || '';
+  const logs = DB.auditLog.filter(a => {
+    if (type && a.type !== type) return false;
+    if (q && !a.user.toLowerCase().includes(q) && !a.note.toLowerCase().includes(q) && !(a.docId||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  document.getElementById('auditLogBody').innerHTML = logs.map(a => {
+    const doc = a.docId ? getDoc(a.docId) : null;
+    return `<tr>
+      <td style="font-size:12px;color:var(--ink-soft);white-space:nowrap">${fmtDateFull(a.ts)}</td>
+      <td style="font-weight:600;font-size:13px">${a.user}</td>
+      <td><span class="audit-badge audit-${a.type}">${a.type}</span></td>
+      <td style="font-size:12px">${doc ? `<span style="font-weight:600">${doc.kode}</span>` : '—'}</td>
+      <td style="font-size:12.5px;color:var(--ink-mid)">${a.note}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--ink-muted)">Tidak ada log</td></tr>';
+}
+
+/* ═══════════════════════════════════════════════
+   GLOBAL SEARCH
+═══════════════════════════════════════════════ */
+let searchTimer = null;
+function onGlobalSearch(q) {
+  clearTimeout(searchTimer);
+  if (!q.trim()) { closeSearch(); return; }
+  searchTimer = setTimeout(() => {
+    const results = DB.documents.filter(d =>
+      d.kode.toLowerCase().includes(q.toLowerCase()) ||
+      d.judul.toLowerCase().includes(q.toLowerCase()) ||
+      Object.values(d.sections).some(v => v.toLowerCase().includes(q.toLowerCase()))
+    );
+    const el = document.getElementById('searchResults');
+    el.innerHTML = results.length
+      ? results.map(d => `<div class="notif-item" onclick="openDocDetail('${d.id}');closeSearch()">
+          <div>
+            <div style="font-weight:700">${d.kode}</div>
+            <div style="font-size:12px;color:var(--ink-soft)">${d.judul} · ${d.bidang} · ${badgeStatus(d.status)}</div>
+          </div>
+        </div>`).join('')
+      : '<div style="padding:24px;text-align:center;color:var(--ink-muted)">Tidak ada dokumen yang cocok</div>';
+    document.getElementById('searchOverlay').classList.add('show');
+  }, 300);
+}
+function closeSearch() {
+  document.getElementById('searchOverlay').classList.remove('show');
+  document.getElementById('globalSearch').value = '';
+}
+
+/* ═══════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════ */
+function badgeStatus(s) {
+  const cls = {
+    'Aktif': 'badge-aktif', 'Draft': 'badge-draft',
+    'Review': 'badge-review', 'Menunggu Approval': 'badge-approval', 'Obsolete': 'badge-obsolete'
+  };
+  return `<span class="badge ${cls[s]||'badge-draft'}">${s}</span>`;
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
+}
+function fmtDateFull(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function fmtTime(d) {
+  return d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+}
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function showNotif(msg, type='') {
+  const bar = document.getElementById('notifBar');
+  const n = document.createElement('div');
+  n.className = 'notif ' + type;
+  n.textContent = msg;
+  bar.appendChild(n);
+  setTimeout(() => n.remove(), 4000);
+}
+function toggleDark() {
+  document.body.classList.toggle('dark');
+}
+function closeReview() { document.getElementById('reviewOverlay').classList.remove('show'); }
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  // Check existing session
+  DB = getStore() || initStore();
+  if (DB.session) {
+    document.getElementById('login-screen').classList.add('hidden');
+    applySession();
+    gotoScreen('dashboard');
+  }
+  updateNavBadges();
+});
+</script>
+</body>
+</html>

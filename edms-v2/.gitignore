@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.python/
+storage/
+backups/
+release/
+.env*
+!.env.example
+!.env.home.example
+*.tsbuildinfo
+next-env.d.ts
+tests/output/

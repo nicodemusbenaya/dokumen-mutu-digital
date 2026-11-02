@@ -117,6 +117,7 @@ export default function EditorPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (docId) formData.append('documentId', String(docId));
 
       const res = await fetch('/api/documents/import', {
         method: 'POST',

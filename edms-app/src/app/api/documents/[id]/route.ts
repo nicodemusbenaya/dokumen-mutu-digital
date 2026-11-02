@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { getSessionFromRequest, unauthorized, forbidden } from '@/lib/auth';
 import { query, withTransaction } from '@/lib/db';
 import { addAuditLog } from '@/lib/audit';
@@ -61,6 +62,9 @@ export async function GET(req: NextRequest, { params }: Params) {
     updatedAt:     raw.updated_at,
     isTemplate:    !!raw.is_template,
     templateSourceId: raw.template_source_id ?? null,
+    sourcePath: raw.source_path ?? null,
+    sourceName: raw.source_name ?? null,
+    sourceExt: raw.source_ext ?? null,
   };
   const sectionsMap: Record<string, string> = {};
   sections.forEach((s: any) => { sectionsMap[s.section_key] = s.content; });
@@ -117,7 +121,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    await withTransaction(async (conn) => {
+    const newVer = await withTransaction(async (conn) => {
+      // Re-check under the row lock: two saves can pass the earlier read at
+      // the same time, or the document can enter review before this save.
+      const [lockedRows] = await conn.execute<RowDataPacket[]>('SELECT * FROM documents WHERE id = ? FOR UPDATE', [docId]);
+      const current = lockedRows[0];
+      if (!current || !canEditDocument(user.role, current.status, current.penyusun_id, user.id)) {
+        throw Object.assign(new Error('Dokumen sudah tidak dapat diedit. Muat ulang halaman.'), { status: 409 });
+      }
+      if (versionNumber === undefined || Number(current.version_number) !== Number(versionNumber)) {
+        throw Object.assign(new Error('Konflik: Dokumen telah berubah. Muat ulang sebelum menyimpan kembali.'), { status: 409 });
+      }
       // Update dokumen header
       await conn.execute(
         `UPDATE documents
@@ -125,10 +139,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
              version_number = version_number + 1, updated_at = NOW()
          WHERE id = ?`,
         [
-          judul       ?? doc.judul,
-          bidang      ?? doc.bidang,
-          jenis       ?? doc.jenis,
-          siklusReview ?? doc.siklus_review,
+          judul       ?? current.judul,
+          bidang      ?? current.bidang,
+          jenis       ?? current.jenis,
+          siklusReview ?? current.siklus_review,
           docId,
         ]
       );
@@ -168,24 +182,21 @@ export async function PUT(req: NextRequest, { params }: Params) {
           );
         }
       }
+      await conn.execute(
+        'INSERT INTO audit_logs (user_id, user_name, action_type, document_id, doc_kode, note, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [user.id, user.fullName, 'UPDATE', docId, doc.kode,
+          `Draft diperbarui; device: ${(req.headers.get('user-agent') || 'unknown').slice(0, 255)}`,
+          req.headers.get('x-forwarded-for')],
+      );
+      return Number(current.version_number) + 1;
     });
-
-    await addAuditLog(user, 'UPDATE', {
-      documentId: docId,
-      docKode:    doc.kode,
-      note:       'Draft diperbarui',
-    });
-
-    // Kembalikan version_number baru
-    const updated = await query<any[]>('SELECT version_number FROM documents WHERE id = ?', [docId]);
-    const newVer = updated[0]?.version_number;
 
     return NextResponse.json({
       data:    { versionNumber: newVer, version: newVer },
       message: 'Dokumen berhasil disimpan.',
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Gagal menyimpan perubahan dokumen.' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Gagal menyimpan perubahan dokumen.' }, { status: err.status || 500 });
   }
 }
 
@@ -203,8 +214,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const rows = await query<any[]>('SELECT status, kode FROM documents WHERE id = ?', [docId]);
   if (!rows.length) return NextResponse.json({ error: 'Dokumen tidak ditemukan.' }, { status: 404 });
 
-  // Dokumen Obsolete bisa dihapus oleh Admin, tapi biarkan log tetap ada
-  await query('DELETE FROM documents WHERE id = ?', [docId]);
+  if (rows[0].status !== 'Obsolete') {
+    return NextResponse.json({ error: 'Hanya dokumen Obsolete yang dapat dihapus.' }, { status: 409 });
+  }
+  // Status predicate also protects against a concurrent status change.
+  const deleted = await query<ResultSetHeader>("DELETE FROM documents WHERE id = ? AND status = 'Obsolete'", [docId]);
+  if (!deleted.affectedRows) return NextResponse.json({ error: 'Status dokumen telah berubah.' }, { status: 409 });
 
   await addAuditLog(user, 'UPDATE', {
     note: `Dokumen ${rows[0].kode} dihapus oleh Admin`,

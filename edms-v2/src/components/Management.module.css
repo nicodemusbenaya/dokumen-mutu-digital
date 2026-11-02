@@ -1,0 +1,11 @@
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:16px;margin-bottom:24px}
+.filters label,.confirm label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:600;min-width:0}
+.bulk{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:20px}
+.bulk span{margin-right:auto;font-variant-numeric:tabular-nums}
+.tableWrap{max-width:100%;min-width:0;overflow:auto}.tableWrap table{min-width:580px}.tableWrap td{overflow-wrap:anywhere}.tableWrap input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand)}
+.confirm{display:grid;gap:18px;background:#fff6d3;padding:20px;border-radius:12px;margin-bottom:24px}.confirm p{max-width:70ch}
+.group{border-top:1px solid var(--line);padding-top:20px;margin-top:24px}.group li{margin:14px 0;overflow-wrap:anywhere}.hint{margin:18px 0;color:var(--muted)}
+.export{display:grid;gap:12px;margin:24px 0}.export a{justify-self:start}.restore{margin-top:16px}.restore form{margin-top:16px}
+@media(max-width:760px){.tableWrap{contain:inline-size}.bulk>span{flex-basis:100%}.confirm{padding:16px}.filters{gap:12px}}
+.bulk select{flex:1 1 200px;width:auto;max-width:310px}.method{display:grid;gap:7px;max-width:420px;font-size:12px;font-weight:600}.confirm input{width:100%}
+.method{margin-bottom:20px}

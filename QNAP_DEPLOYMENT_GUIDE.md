@@ -1,144 +1,42 @@
-# Panduan Deployment QNAP NAS & Cloudflare Tunnel
-## EDMS PLN UP Sertifikasi — Sistem Dokumen Mutu Digital
+# Rencana Deployment EDMS v2 ke QNAP
 
-Panduan ini ditujukan untuk memandu proses deployment aplikasi EDMS ke server **QNAP NAS internal kantor** tanpa memerlukan port forwarding router dan tanpa VPN, serta bagaimana mengelolanya dari Web Admin QNAP (QTS).
+Status 23 Oktober 2026: deployment v2.1.0 lulus, akses LAN http://10.10.200.166:3000. Image Linux, backup/restore, smoke dummy NAS dan restart telah diverifikasi. Bukti dan checkpoint ada di [docs/IMPLEMENTASI_V2.md](docs/IMPLEMENTASI_V2.md); acuan keputusan [plan.md](plan.md).
 
----
+Urutan transisi di bawah adalah referensi rilis pertama yang sudah dijalankan. Untuk update berikutnya, buat backup konsisten baru dan paket teruji; pertahankan dokumen/versi aktif. Manifest pengosongan register awal serta helper resume/finalisasi terikat checkpoint lama dan tidak boleh dipakai ulang pada produksi aktif.
 
-## 1. Arsitektur Deployment
+## Infrastruktur tetap
 
-```
-[ Pengguna di Rumah / Luar Kantor ]
-               │ (HTTPS: https://edms-mutu.domain.com)
-               ▼
-      [ Cloudflare Edge ]
-               │ (Jalur Tunnel Aman Outbound - Tanpa Buka Port)
-               ▼
-   [ QNAP NAS Internal (10.10.200.166) ]
-   ├── Container 1: cloudflared (Connector Cloudflare)
-   ├── Container 2: edms-ups-app (Next.js Standalone Port 3000)
-   └── Service Bawaan: MariaDB 10.5.8 (Port 3307 internal)
-```
+Gunakan container/service aplikasi lama, database edms_ups dan mount storage/jaringan/port yang sama. Pengguna mengonfirmasi akses hanya LAN pada http://10.10.200.166:3000; domain HTTPS publik tidak digunakan. MariaDB 3307 tetap internal. Intel Celeron J3455 4 core/4 thread hingga 2,3 GHz, RAM 4 GB; runtime linux/amd64 terverifikasi.
 
----
+Build/install dependency dalam Linux container di laptop. Paket final mencakup standalone, public, .next/static dan dependency konversi yang diuji. NAS hanya menjalankan runtime, tanpa npm install/npm run build. Compose produksi image tanpa build. Update image dapat merekreasi instance container pada service yang sama, bukan membuat stack paralel.
 
-## 2. Persiapan Sebelum ke Kantor
+Worker berada dalam container aplikasi sama; satu job konversi sekaligus, timeout, cache per hash/version dan restart recovery. Rilis mencakup Office-ke-PDF serta PDF-ke-DOCX; pilih engine PDF-ke-DOCX melalui proof-of-concept dummy tersendiri. Ukur beban web+worker di NAS 4 GB; jangan menjanjikan batas RAM tanpa pengukuran. Optimasi sebelum meminta perubahan arsitektur.
 
-Build aplikasi di laptop agar menghasilkan berkas produksi (*standalone*) yang ringan dan hemat RAM:
+## Isi rilis
 
-1. Buka folder `edms-app` di terminal:
-   ```bash
-   cd "edms-app"
-   npm run build
-   ```
-2. Hasil build akan berada di `.next/standalone`. Berkas ini sangat hemat memori (hanya butuh RAM ~50MB–100MB di QNAP).
+Image/paket runtime, manifest versi/arsitektur/checksum/schema, konfigurasi runtime tanpa secret, migrasi/checkpoint, cleanup data dokumen lama yang terarah, health check dan prosedur rollback teruji. Jangan memasukkan .env.local, cookie, dokumen pengguna atau dump database ke image.
 
----
+## Data dan urutan transisi
 
-## 3. Langkah Setup di Web Admin QNAP (QTS)
+1. Uji lokal dengan dummy sintetis; uji migrasi/cleanup pada salinan backup secara terkontrol.
+2. Build image Linux amd64 di laptop dan smoke test paket final menggunakan dummy.
+3. Backup konsisten DB+file, verifikasi restore dan simpan runtime sebelumnya.
+4. Masuk maintenance, hentikan penulisan; buat manifest record/file dokumen lama dan relasinya.
+5. Hapus data dokumen lama, revisi/sections/relasi/approval dan file khusus miliknya dalam urutan FK yang benar. Jangan membawa dokumen lama ke register baru. Jaga akun/role/bidang, master independen, konfigurasi, logo dan backup; pilah audit sistem/akun yang bercampur. Jangan DROP DATABASE/reset semua tabel atau mengosongkan volume. Jangan menghapus Dokumen Final.
+6. Migrasi schema dengan versi/checkpoint, perbarui runtime service lama, mount/environment tetap. DDL MariaDB tidak dianggap transactional; siapkan recovery tiap tahap.
+7. Jalankan health/RBAC/upload/download/update/konversi/popup memakai dummy saja pada NAS. Versi baru langsung aktif setelah validasi; tidak ada approval bertingkat.
+8. Bersihkan semua file/job/versi/turunan dummy melalui penandanya, buka kembali endpoint lama setelah pemeriksaan lulus.
 
-Semua langkah di bawah ini dilakukan melalui browser (Web Admin QNAP) tanpa perlu terminal SSH.
+Impor asli dari Dokumen Final dilakukan sebagai pekerjaan operasional setelah aplikasi siap, bukan sebagai test development/UAT/smoke. Jangan otomatis mengupload dokumen asli untuk pembuktian fitur. Manifest inventaris 351 file awal diperbarui bila folder berubah.
 
-### Langkah 1: Instal Container Station
-1. Login ke Web Admin QNAP (`http://10.10.200.166:8080`).
-2. Buka menu **App Center**.
-3. Cari **Container Station** dan klik **Install** (gratis).
+## Storage dan rollback
 
-### Langkah 2: Setup Database MariaDB di QNAP
-1. Pastikan fitur **MariaDB / MySQL Server** di QNAP aktif (Menu: *Control Panel* -> *Applications* -> *SQL Server*).
-2. Port database standar pada NAS Anda: `3307`.
-3. Buka **phpMyAdmin** di QNAP:
-   * Buat database baru: `edms_ups`.
-   * Klik menu **Import**, pilih berkas `sql/001_schema.sql` lalu klik **Go**.
-   * Klik menu **Import**, pilih berkas `sql/002_seed.sql` lalu klik **Go**.
+Mount storage lama tetap di luar image; tambah subfolder original/derived/staging sesuai kebutuhan. Cleanup khusus file yang masuk manifest data dokumen lama dan tidak dipakai akun/config/data bersama. Staging cleanup berdasar TTL dan referensi aktif. Jangan sync data laptop menimpa NAS.
 
----
+Rollback image memerlukan schema kompatibel; bila cleanup/migrasi merusak kompatibilitas, hentikan penulisan dan restore DB+file dari backup pra-transisi bersama runtime lama. Backup untuk recovery, bukan migrasi dokumen lama ke aplikasi baru.
 
-## 4. Setup Cloudflare Tunnel (Akses dari Luar Tanpa Buka Port)
+## Tunnel dan penerimaan
 
-Layanan ini **100% gratis** dari Cloudflare Zero Trust:
+Produksi saat ini hanya LAN; Tunnel tetap stopped setelah maintenance. Jika kelak akses publik diperlukan, konfigurasi HTTPS/origin dan Tunnel menjadi perubahan operasional tersendiri. Chunk upload, expiry/checksum/kuota sesi dan file privat tanpa cache publik tetap berlaku. Penerimaan: NAS tanpa build/install, akun/config tetap, register akhir tanpa dokumen lama/dummy, restart lulus, beban terukur, restore/rollback terbukti. PDF asli utuh; setiap download DOCX converted memerlukan warning/acknowledgement.
 
-1. Buka dan daftar akun di [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/) (Gratis).
-2. Masuk ke menu **Networks** -> **Tunnels** -> Klik **Add a tunnel**.
-3. Pilih tipe **Cloudflared**, beri nama tunnel (misal: `qnap-edms-ups`).
-4. Pada halaman *Install connector*, pilih **Docker**.
-5. Salin kode token yang muncul di layar, formatnya seperti:
-   `eyJhIjoiYmNm...`
-6. Pada tab **Public Hostname**:
-   * Masukkan subdomain yang diinginkan, misal: `edms-mutu` pada domain Anda.
-   * Service Type: `HTTP`
-   * URL: `edms-app:3000` (atau `10.10.200.166:3000`).
-7. Klik **Save hostname**.
-
----
-
-## 5. Menjalankan Aplikasi di QNAP Container Station
-
-1. Buka **Container Station** di Web QTS.
-2. Klik menu **Applications** (atau *Aplikasi*) di bilah kiri.
-3. Klik tombol **Create** (Buat).
-4. Beri nama aplikasi: `edms-mutu-system`.
-5. **Buat dulu folder storage persisten** via *File Station*: buat folder `/share/Container/edms-data` (folder ini menampung PDF, lampiran, dan tanda tangan — tidak ikut hilang saat update aplikasi).
-6. Di kolom teks YAML (Docker Compose), masukkan konfigurasi berikut:
-
-```yaml
-version: '3.8'
-
-services:
-  # Layanan Web EDMS Next.js
-  edms-app:
-    image: node:20-alpine
-    container_name: edms-ups-app
-    restart: always
-    working_dir: /app
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DB_HOST=10.10.200.166
-      - DB_PORT=3307
-      - DB_NAME=edms_ups
-      - DB_USER=root
-      - DB_PASSWORD=12345678
-      - JWT_SECRET=bff080224bc66715307017bd9ef28b2f14d7c8c5985c00e7afa4a04ab9fc2162
-      - SESSION_COOKIE=edms_session
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
-    volumes:
-      - /share/Container/edms-app:/app
-      # Storage fisik NAS terpisah untuk PDF, lampiran, dan tanda tangan (Sesuai Bab 9.5 Spesifikasi)
-      # Folder terpisah agar file tidak hilang saat update aplikasi (rsync/git pull di /app)
-      - /share/Container/edms-data:/app/storage
-    command: sh -c "node server.js"
-
-  # Layanan Cloudflare Tunnel
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: edms-cloudflare-tunnel
-    restart: always
-    command: tunnel --no-autoupdate run --token MASUKKAN_TOKEN_CLOUDFLARE_DISINI
-    depends_on:
-      - edms-app
-```
-*(Ganti `MASUKKAN_TOKEN_CLOUDFLARE_DISINI` dengan token yang Anda dapatkan di langkah 4).*
-
-7. Klik **Validate YAML**, lalu klik **Create**.
-8. Container Station akan otomatis mengunduh image dan menjalankan aplikasi.
-
-> **Catatan migrasi (pertama kali):** file TTD/PDF lama yang tersimpan di `public/uploads` dipindahkan ke `storage/` dengan menjalankan `node scripts/migrate_uploads_to_storage.mjs` lalu menyalin hasilnya ke `/share/Container/edms-data/` (atau biarkan fallback path `public/uploads` tetap melayani file lama).
-
----
-
-## 6. URL / Link yang Dihasilkan
-
-Setelah container berjalan:
-* **Akses Internal Kantor**: `http://10.10.200.166:3000`
-* **Akses Eksternal (WFH / Rumah / Mobile)**: `https://edms-mutu.domainanda.com` (Otomatis HTTPS aman, tanpa perlu VPN kantor).
-
----
-
-## 7. Catatan Pemeliharaan & Troubleshooting
-
-* **Jika QNAP restart (misal setelah mati lampu):** Container Station telah diatur dengan opsi `restart: always`, sehingga aplikasi dan Cloudflare Tunnel akan otomatis menyala kembali saat NAS hidup.
-* **Melihat Log Aplikasi:** Buka *Container Station* -> Klik *Containers* -> Klik container `edms-ups-app` atau `edms-cloudflare-tunnel` -> Tab *Logs*.
-* **Backup Database:** Database tersimpan di MariaDB QNAP, backup otomatis dapat dijadwalkan menggunakan fitur *Backup Station* atau *Hybrid Backup Sync (HBS 3)* bawaan QNAP ke disk eksternal/cloud.
+Referensi: https://nextjs.org/docs/app/api-reference/config/next-config-js/output

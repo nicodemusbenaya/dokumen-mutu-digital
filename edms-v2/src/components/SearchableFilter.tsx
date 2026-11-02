@@ -1,0 +1,10 @@
+'use client';
+import {useId,useState} from 'react';
+import type {MasterValue} from './MasterManager';
+import s from './SearchableFilter.module.css';
+
+export function SearchableFilter({label,value,onChange,values,type}:{label:string;value:string;onChange:(value:string)=>void;values:MasterValue[];type:string}){
+ const [open,setOpen]=useState(false),listId=useId();
+ const options=values.filter(item=>item.type===type&&item.isActive&&(!value||item.label.toLocaleLowerCase('id').includes(value.toLocaleLowerCase('id'))||item.value.toLocaleLowerCase('id').includes(value.toLocaleLowerCase('id'))));
+ return <div className={s.combo}><div className={s.field}><input role="combobox" aria-label={label} aria-autocomplete="list" aria-expanded={open} aria-controls={listId} placeholder={'Semua '+label.toLocaleLowerCase('id')} value={value} onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),120)} onChange={event=>{onChange(event.target.value);setOpen(true);}} onKeyDown={event=>{if(event.key==='Escape')setOpen(false);if(event.key==='Enter'&&open&&options.length){event.preventDefault();onChange(options[0].value);setOpen(false);}}}/><button type="button" aria-label={'Tampilkan pilihan '+label} aria-expanded={open} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(!open)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="m6 9 6 6 6-6"/></svg></button></div>{open&&<div className={s.options} id={listId} role="listbox"><button type="button" role="option" aria-selected={!value} onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange('');setOpen(false);}}>Semua {label.toLocaleLowerCase('id')}</button>{options.map(item=><button type="button" role="option" aria-selected={value===item.value} key={item.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange(item.value);setOpen(false);}}>{item.label}</button>)}{!options.length&&<span>Tidak ada pilihan yang cocok</span>}</div>}</div>;
+}

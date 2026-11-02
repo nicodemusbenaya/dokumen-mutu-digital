@@ -88,7 +88,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     const ext = (source_ext || path.extname(abs).replace('.', '')).toLowerCase();
     const mime = MIME_BY_EXT[ext] || 'application/octet-stream';
     const name = source_name || `source.${ext}`;
-    return new NextResponse(new Uint8Array(buf), { headers: attachmentHeaders(name, mime) });
+    const headers = new Headers(attachmentHeaders(name, mime));
+    if (ext === 'pdf' && req.nextUrl.searchParams.get('inline') === '1') {
+      headers.set('Content-Disposition', 'inline');
+      headers.set('X-Content-Type-Options', 'nosniff');
+    }
+    return new NextResponse(new Uint8Array(buf), { headers });
   } catch {
     return NextResponse.json(
       { error: 'File sumber tidak ditemukan di storage. Mungkin belum pernah diunggah.' },

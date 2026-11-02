@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:regression": "node scripts/regression_document_audit.mjs"
   },
   "dependencies": {
     "@sparticuz/chromium-min": "^153.0.0",

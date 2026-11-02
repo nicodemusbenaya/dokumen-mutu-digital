@@ -144,8 +144,13 @@ export async function POST(req: NextRequest) {
       for (const id of ids) {
         const doc = byId.get(id);
         if (!doc) { markMissing(id); continue; }
+        if (doc.status !== 'Obsolete') {
+          results.push({ id, kode: doc.kode, status: 'skipped', error: 'Hanya dokumen Obsolete yang dapat dihapus.' });
+          continue;
+        }
         try {
-          await query('DELETE FROM documents WHERE id = ?', [id]);
+          const deleted = await query<{ affectedRows: number }>("DELETE FROM documents WHERE id = ? AND status = 'Obsolete'", [id]);
+          if (!deleted.affectedRows) throw new Error('Status dokumen telah berubah.');
           await fs.rm(path.join(process.cwd(), 'storage', 'media', String(id)), { recursive: true, force: true });
           await addAuditLog(user, 'DELETE', {
             documentId: id,
@@ -205,7 +210,9 @@ export async function POST(req: NextRequest) {
           const sections = await query<SectionRow[]>(
             'SELECT section_key, content FROM document_sections WHERE document_id = ?', [id],
           );
-          const hasText = sections.some(s => (s.content || '').replace(/<[^>]*>/g, '').trim().length > 0);
+          const hasText = sections.some(s => !s.section_key.startsWith('_') && (
+            (s.content || '').replace(/<[^>]*>/g, '').trim().length > 0 || /<img\b[^>]*\bsrc=["'][^"']+/i.test(s.content || '')
+          ));
           if (!sections.length || !hasText) {
             results.push({ id, kode: doc.kode, status: 'skipped', error: 'Isi bagian dokumen masih kosong.' });
             continue;

@@ -34,8 +34,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   );
 
   const hasText = sections.some(s => {
+    if (s.section_key.startsWith('_')) return false;
     const plain = (s.content || '').replace(/<[^>]*>/g, '').trim();
-    return plain.length > 0;
+    return plain.length > 0 || /<img\b[^>]*\bsrc=["'][^"']+/i.test(s.content || '');
   });
 
   if (!sections.length || !hasText) {

@@ -1,104 +1,13 @@
-# EDMS — Sistem Dokumen Mutu Digital
-## PLN UP Sertifikasi | Next.js + MariaDB
+# Source Lama EDMS
 
-### Tech Stack
-- **Frontend**: Next.js 14 (App Router) + TypeScript
-- **Backend**: Next.js API Routes
-- **Database**: MariaDB 10.5.8 (NAS internal)
-- **Auth**: JWT via HttpOnly cookie (jose + bcryptjs)
-- **Rich Text**: TipTap
-- **Signature**: signature_pad.js
-- **PDF**: Puppeteer (HTML-to-PDF)
+Keputusan 22 Oktober 2026 versi 2.1: source lama/perubahan lokal dipertahankan sebagai referensi; source pengganti ada di edms-v2, belum deploy NAS; lihat ../docs/IMPLEMENTASI_V2.md. Baca [plan](../plan.md), [spesifikasi](../Spesifikasi_EDMS_Dokumen_Mutu_UPS.md) dan [AGENTS](../AGENTS.md).
 
----
+Target tetap container/service lama, DB edms_ups dan mount storage yang sama. Build di laptop untuk NAS J3455/RAM 4 GB, linux/amd64; tanpa build/install di NAS. Source baru boleh disusun di edms-v2 sebagai direktori kerja saja.
 
-### Setup Awal
+Dokumen aplikasi lama dan histori terkait akan dibersihkan saat transisi setelah backup, tidak dimigrasikan. Akun/config/master independen dan source dipertahankan. Sumber awal hanya Dokumen Final. Jangan menjalankan purge/seed/reset/deploy lama untuk tugas penyelarasan; SQL/Compose/script saat ini belum paket v2 dan bukan prosedur cleanup baru yang terverifikasi.
 
-#### 1. Konfigurasi Database
-Isi file `.env.local` dengan credentials database NAS Anda:
-```
-DB_HOST=<IP NAS>
-DB_PORT=3307
-DB_NAME=edms_ups
-DB_USER=edms_app
-DB_PASSWORD=<password>
-JWT_SECRET=<64-char hex string>
-```
+Rilis baru tanpa approval bertingkat; upload/update langsung aktif setelah validasi. PDF-ke-Word termasuk rilis pertama dengan popup wajib. Histori versi baru tetap disimpan. UI biru muda/kuning, logo Danantara/PLN, gunakan skill UI terpasang yang relevan saat implementasi.
 
-Generate JWT secret:
-```bash
-node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-```
+Semua pengujian upload ZIP/PDF/DOCX/XLSX, update dan konversi memakai dummy sintetis saja. Jangan menggunakan dokumen asli untuk test/smoke. Tidak ada operasi NAS/data pada tugas dokumentasi ini.
 
-#### 2. Jalankan SQL ke MariaDB NAS
-```bash
-mysql -h <IP_NAS> -P 3307 -u <admin_user> -p < sql/001_schema.sql
-mysql -h <IP_NAS> -P 3307 -u edms_ups -p edms_ups < sql/002_seed.sql
-```
-
-#### 3. Install Dependencies
-```bash
-npm install
-```
-
-#### 4. Jalankan Development Server
-```bash
-npm run dev
-```
-Buka: http://localhost:3000
-
-#### 5. Akun Default (password: `edms2026`)
-| Username | Role |
-|----------|------|
-| fakhri   | Penyusun Dokumen |
-| sari     | Tim Mutu |
-| riko     | Manager Bidang |
-| budi     | Pimpinan Unit |
-| admin    | Admin Sistem |
-
----
-
-### Build Production (untuk deploy ke NAS)
-```bash
-npm run build
-npm start
-```
-
-### Port NAS
-- Aplikasi: `3000` (atau sesuai `--port` saat `npm start`)
-- Forward port publik `18080` → `3000` internal
-
----
-
-### Struktur Folder
-```
-src/
-├── app/
-│   ├── (app)/           # Protected pages (perlu login)
-│   │   ├── dashboard/
-│   │   ├── documents/
-│   │   ├── editor/
-│   │   ├── approval/
-│   │   ├── references/
-│   │   └── audit/
-│   ├── api/             # API Routes
-│   │   ├── auth/
-│   │   ├── documents/
-│   │   ├── references/
-│   │   └── audit/
-│   └── login/
-├── components/
-│   ├── layout/
-│   └── editor/
-├── lib/                 # Core utilities
-│   ├── db.ts            # MariaDB pool
-│   ├── auth.ts          # JWT session
-│   ├── rbac.ts          # Permission matrix
-│   ├── pdf.ts           # Puppeteer PDF
-│   └── audit.ts         # Audit log writer
-└── types/index.ts
-
-sql/
-├── 001_schema.sql       # DDL semua tabel
-└── 002_seed.sql         # Data awal
-```
+Untuk referensi lokal, gunakan runtime yang kompatibel package/lock, credential lokal melalui environment dan npm ci di laptop bila perlu, lalu npm run dev. Jangan menguji mutasi terhadap NAS tanpa prosedur tahap terkait. Cache node_modules/.next, source, backup, environment dan dokumen asli tidak dibersihkan oleh tugas penyelarasan ini.

@@ -33,3 +33,12 @@ cookies.txt
 *.zip
 edms-standalone-qnap/
 **/extracted_media/
+
+# Archived runtime packages are local rollback references, not source
+/archive/legacy-deployment/
+
+# Real document sources and local Python bytecode are never source releases
+/Dokumen Final/
+/Folder Logo/
+**/__pycache__/
+*.pyc

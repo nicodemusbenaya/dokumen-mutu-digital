@@ -4,6 +4,7 @@ import { query, withTransaction } from '@/lib/db';
 import { addAuditLog } from '@/lib/audit';
 import { hasPermission } from '@/lib/rbac';
 import { getDefaultSectionsForType } from '@/lib/documentTypes';
+import { adoptDraftImportAssets } from '@/lib/importAssets';
 
 // ─── GET /api/documents ───────────────────────────────────────
 // Query params: ?status=&bidang=&jenis=&q=&page=&limit=
@@ -120,9 +121,10 @@ export async function POST(req: NextRequest) {
       const docId = res.insertId;
 
       // Insert sections (dari body.sections atau default template resmi sesuai jenis dokumen)
-      const sectionsToSave = (sections && typeof sections === 'object' && Object.keys(sections).length > 0)
+      const inputSections = (sections && typeof sections === 'object' && Object.keys(sections).length > 0)
         ? sections
         : getDefaultSectionsForType(jenis);
+      const sectionsToSave = await adoptDraftImportAssets(inputSections, user.id, Number(docId));
 
       for (const [key, content] of Object.entries(sectionsToSave)) {
         await conn.execute(

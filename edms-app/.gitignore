@@ -52,3 +52,11 @@ next-env.d.ts
 # artefak laporan import & tooling sekali pakai
 /.import-report/
 
+
+# Temporary probes, parser output, local backups and release packages
+/_tmp*
+/tmp/
+/backups/
+/deploy/
+/scripts/.parser-build/
+

@@ -1,7 +1,18 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // The QNAP release is built under /app/update-* while /app has its own
+  // package-lock.json. Keep tracing and @/ imports rooted in this release.
+  outputFileTracingRoot: process.cwd(),
+  webpack(config) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(process.cwd(), 'src'),
+    };
+    return config;
+  },
   serverExternalPackages: ['puppeteer', 'puppeteer-core', '@sparticuz/chromium-min', 'mysql2', 'bcryptjs',
     'pdf-parse', 'pdfjs-dist', '@napi-rs/canvas'],
   // pdfjs-dist/pdf-parse dimuat sebagai external (build terbundel tidak punya

@@ -1505,70 +1505,113 @@ export async function parsePdfBuffer(
   const detectedType = detectType({ ...ctx, kode: meta.kode, judul: meta.judul });
 
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  const textObj = await parser.getText();
-  const rawText: string = (textObj as { text?: string }).text || '';
+  try {
+    const textObj = await parser.getText();
+    const rawText: string = (textObj as { text?: string }).text || '';
 
-  const clauseMarkers: Array<{ key: string; regex: RegExp }> = [
-    { key: 'tujuan', regex: /(?:^|\n)(?:\d+[\.)]\s*)?TUJUAN\b/i },
-    { key: 'ruang_lingkup', regex: /(?:^|\n)(?:\d+[\.)]\s*)?RUANG\s+LINGKUP\b/i },
-    { key: 'referensi', regex: /(?:^|\n)(?:\d+[\.)]\s*)?(?:DOKUMEN\s+)?REFERENSI\b/i },
-    { key: 'proses_bisnis', regex: /(?:^|\n)(?:\d+[\.)]\s*)?PROSES\s+BISNIS\b/i },
-    { key: 'istilah_definisi', regex: /(?:^|\n)(?:\d+[\.)]\s*)?ISTILAH(?:\s+DAN\s+DEFINISI)?\b/i },
-    { key: 'alur_prosedur', regex: /(?:^|\n)(?:\d+[\.)]\s*)?(?:ALUR\s+)?PROSEDUR\b/i },
-    { key: 'dokumen_pendukung', regex: /(?:^|\n)(?:\d+[\.)]\s*)?DOKUMEN\s+PENDUKUNG\b/i },
-  ];
+    const clauseMarkers: Array<{ key: string; regex: RegExp }> = [
+      { key: 'tujuan', regex: /(?:^|\n)(?:\d+[\.)]\s*)?TUJUAN\b/i },
+      { key: 'ruang_lingkup', regex: /(?:^|\n)(?:\d+[\.)]\s*)?RUANG\s+LINGKUP\b/i },
+      { key: 'referensi', regex: /(?:^|\n)(?:\d+[\.)]\s*)?(?:DOKUMEN\s+)?REFERENSI\b/i },
+      { key: 'proses_bisnis', regex: /(?:^|\n)(?:\d+[\.)]\s*)?PROSES\s+BISNIS\b/i },
+      { key: 'istilah_definisi', regex: /(?:^|\n)(?:\d+[\.)]\s*)?ISTILAH(?:\s+DAN\s+DEFINISI)?\b/i },
+      { key: 'alur_prosedur', regex: /(?:^|\n)(?:\d+[\.)]\s*)?(?:ALUR\s+)?PROSEDUR\b/i },
+      { key: 'dokumen_pendukung', regex: /(?:^|\n)(?:\d+[\.)]\s*)?DOKUMEN\s+PENDUKUNG\b/i },
+    ];
 
-  const found: Array<{ key: string; index: number }> = [];
-  for (const cm of clauseMarkers) {
-    const idx = rawText.search(cm.regex);
-    if (idx !== -1) found.push({ key: cm.key, index: idx });
-  }
-  found.sort((a, b) => a.index - b.index);
-
-  const sections: Record<string, string> = {};
-  const order: ParsedSectionOrderItem[] = [];
-
-  const toHtml = (text: string): string =>
-    text
-      .split('\n')
-      .filter((l) => l.trim().length > 0)
-      .map((l) => `<p>${escapeHtml(l.trim())}</p>`)
-      .join('');
-
-  if (found.length) {
-    for (let i = 0; i < found.length; i++) {
-      const start = found[i].index;
-      const end = i + 1 < found.length ? found[i + 1].index : rawText.length;
-      const chunk = rawText.slice(start, end);
-      const lines = chunk.split('\n').filter((l) => l.trim().length > 0);
-      lines.shift(); // buang baris penanda klausulnya
-      const html = toHtml(lines.join('\n'));
-      if (!html.trim()) continue;
-      sections[found[i].key] = html;
-      order.push({ key: found[i].key, title: titleCaseFromKey(found[i].key), isCustom: true });
+    const found: Array<{ key: string; index: number }> = [];
+    for (const cm of clauseMarkers) {
+      const idx = rawText.search(cm.regex);
+      if (idx !== -1) found.push({ key: cm.key, index: idx });
     }
-  }
+    found.sort((a, b) => a.index - b.index);
 
-  if (!order.length) {
-    const html = toHtml(rawText.trim());
-    if (html) {
-      sections['isi_dokumen'] = html;
-      order.push({ key: 'isi_dokumen', title: 'Isi Dokumen', isCustom: true });
-      warnings.push('Tanda klausul tidak ditemukan; seluruh teks dijadikan satu seksi.');
+    const sections: Record<string, string> = {};
+    const order: ParsedSectionOrderItem[] = [];
+    const assets: ParsedAsset[] = [];
+
+    const toHtml = (text: string): string =>
+      text
+        .split('\n')
+        .filter((l) => l.trim().length > 0)
+        .map((l) => `<p>${escapeHtml(l.trim())}</p>`)
+        .join('');
+
+    if (found.length) {
+      // Preserve front matter: approval sheets, revision history and cover text
+      // precede the first clause and used to be silently discarded.
+      const frontMatter = rawText.slice(0, found[0].index).trim();
+      if (frontMatter) {
+        sections.bagian_awal = toHtml(frontMatter);
+        order.push({ key: 'bagian_awal', title: 'Bagian Awal Dokumen', isCustom: true });
+      }
+      for (let i = 0; i < found.length; i++) {
+        const start = found[i].index;
+        const end = i + 1 < found.length ? found[i + 1].index : rawText.length;
+        const chunk = rawText.slice(start, end);
+        const lines = chunk.split('\n').filter((l) => l.trim().length > 0);
+        lines.shift(); // buang baris penanda klausulnya
+        const html = toHtml(lines.join('\n'));
+        if (!html.trim()) continue;
+        sections[found[i].key] = html;
+        order.push({ key: found[i].key, title: titleCaseFromKey(found[i].key), isCustom: true });
+      }
     }
+
+    if (!order.length) {
+      const html = toHtml(rawText.trim());
+      if (html) {
+        sections['isi_dokumen'] = html;
+        order.push({ key: 'isi_dokumen', title: 'Isi Dokumen', isCustom: true });
+        warnings.push('Tanda klausul tidak ditemukan; seluruh teks dijadikan satu seksi.');
+      }
+    }
+
+    // A text extraction cannot retain handwritten signatures or stamps. Keep a
+    // visual copy of approval pages as source evidence, never as app approvals.
+    const approvalPages = textObj.pages.filter(page =>
+      !page.text.trim() || /(?:lembar|halaman)\s+pengesahan|disahkan\s+oleh|disetujui\s+oleh/i.test(page.text)
+    ).map(page => page.num);
+    const hasScannedPages = textObj.pages.some(page => !page.text.trim());
+    if (hasScannedPages) warnings.push('PDF memuat halaman scan. Halaman asli dipertahankan sebagai gambar; teks scan belum dapat diedit atau dicari tanpa OCR.');
+    if (approvalPages.length) {
+      try {
+        let html = '';
+        // Render sequentially to keep peak memory low on the NAS.
+        for (const pageNumber of approvalPages) {
+          const screenshot = await parser.getScreenshot({
+            partial: [pageNumber], desiredWidth: 1200, imageDataUrl: false,
+          });
+          for (const page of screenshot.pages) {
+            const id = assets.length + 1;
+            assets.push({ id, data: Buffer.from(page.data), ext: 'png', mime: 'image/png' });
+            html += `<p>Halaman ${page.pageNumber} dari berkas sumber</p><p><img src="@@IMG:${id}@@" alt="Halaman asli ${page.pageNumber}" style="max-width:100%;height:auto" /></p>`;
+          }
+        }
+        if (html) {
+          const key = hasScannedPages ? 'halaman_scan_asli' : 'pengesahan_asli';
+          sections[key] = html;
+          order.unshift({ key, title: hasScannedPages ? 'Halaman Scan Asli' : 'Lembar Pengesahan Asli', isCustom: true });
+        }
+      } catch {
+        warnings.push('Gambar lembar pengesahan tidak dapat diekstrak; periksa berkas sumber untuk tanda tangan asli.');
+      }
+    }
+
+    sections[SECTION_ORDER_KEY] = JSON.stringify(order);
+
+    return {
+      kode: meta.kode,
+      judul: meta.judul || 'DOKUMEN MUTU TERKENDALI',
+      detectedType,
+      sourceType: 'pdf',
+      sections,
+      sectionOrder: order,
+      kopHtml: null,
+      assets,
+      warnings,
+    };
+  } finally {
+    await parser.destroy();
   }
-
-  sections[SECTION_ORDER_KEY] = JSON.stringify(order);
-
-  return {
-    kode: meta.kode,
-    judul: meta.judul || 'DOKUMEN MUTU TERKENDALI',
-    detectedType,
-    sourceType: 'pdf',
-    sections,
-    sectionOrder: order,
-    kopHtml: null,
-    assets: [],
-    warnings,
-  };
 }

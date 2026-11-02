@@ -314,8 +314,8 @@ export async function POST(req: NextRequest) {
   }
 
   const existingRows = await query<Array<{
-    id: number; kode: string; current_version: string; version_number: number;
-  }>>('SELECT id, kode, current_version, version_number FROM documents');
+    id: number; kode: string; current_version: string; version_number: number; status: string;
+  }>>('SELECT id, kode, current_version, version_number, status FROM documents');
   const existingByKode = new Map(existingRows.map(r => [r.kode, r]));
   for (const i of items) {
     const found = existingByKode.get(i.kode);
@@ -337,6 +337,7 @@ export async function POST(req: NextRequest) {
       else i.warnings.push(`Format .${i.ext} tidak dikonversi ke teks — dokumen disimpan tanpa seksi.`);
 
       if (parsed?.judul) i.judul = parsed.judul;
+      if (parsed?.warnings) i.warnings.push(...parsed.warnings);
       await persistItem(i, parsed, user.id);
       i.status = i.mode === 'update' ? 'updated' : 'created';
     } catch (err) {
@@ -364,9 +365,12 @@ export async function POST(req: NextRequest) {
   let deleted = 0;
   if (wantSync) {
     const planKodes = new Set(items.filter(i => !i.skip).map(i => i.kode));
-    const orphans = existingRows.filter(r => !planKodes.has(r.kode));
+    // ISO retention applies to sync deletion too. Never remove live documents
+    // merely because they are absent from an uploaded ZIP.
+    const orphans = existingRows.filter(r => !planKodes.has(r.kode) && r.status === 'Obsolete');
     for (const o of orphans) {
-      await query('DELETE FROM documents WHERE id = ?', [o.id]);
+      const removed = await query<{ affectedRows: number }>("DELETE FROM documents WHERE id = ? AND status = 'Obsolete'", [o.id]);
+      if (!removed.affectedRows) continue;
       await fs.rm(path.join(MEDIA_ROOT, String(o.id)), { recursive: true, force: true });
       deleted++;
     }

@@ -1,0 +1,20 @@
+# Isolated laptop-only database. Never merge this file with NAS Compose.
+name: edms-v2-home
+services:
+  db:
+    image: mariadb:10.11
+    ports:
+      - "127.0.0.1:33307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${HOME_DB_PASSWORD:?Run npm run dev:home first}
+      MARIADB_DATABASE: edms_home
+      MARIADB_ROOT_HOST: "%"
+    volumes:
+      - home_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+volumes:
+  home_db:

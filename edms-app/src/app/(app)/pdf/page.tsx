@@ -315,6 +315,9 @@ export default function PdfPreviewPage() {
               <span>Edit Dokumen</span>
             </Link>
           )}
+          {doc?.sourcePath && (
+            <a className="btn btn-outline btn-sm" href={`/api/documents/${doc.id}/source?inline=1`} target="_blank" rel="noopener noreferrer">Dokumen Asli &amp; Tanda Tangan</a>
+          )}
 
           <button
             className="btn btn-primary btn-sm"
@@ -342,6 +345,9 @@ export default function PdfPreviewPage() {
             {(() => {
               const isFormulir = FORMULIR_TYPES.has(doc.jenis);
               const headerTitles = getOfficialHeaderTitles(doc);
+              const hasOriginalApproval = !!doc.sections.halaman_scan_asli || getOrderedSections(doc.jenis, doc.sections)
+                .some(section => /^(?:lembar|halaman)\s+pengesahan/i.test(section.title));
+              const showAppApproval = !hasOriginalApproval || !!mgrAppr?.signaturePath || !!pimpAppr?.signaturePath;
               const formattedDate = doc.updatedAt
                 ? new Date(doc.updatedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
                 : '-';
@@ -382,7 +388,7 @@ export default function PdfPreviewPage() {
                     </table>
 
                     {/* Lembar Pengesahan Resmi Formulir */}
-                    <div style={{ margin: '14px 0 12px' }}>
+                    <div hidden={!showAppApproval} style={{ margin: '14px 0 12px' }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.02em', marginBottom: 6 }}>LEMBAR PENGESAHAN</div>
                       <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 8 }}>Jakarta, {formattedDate}</div>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -500,7 +506,7 @@ export default function PdfPreviewPage() {
                   </table>
 
                   {/* Lembar Pengesahan Resmi */}
-                  <div style={{ margin: '18px 0 16px' }}>
+                  <div hidden={!showAppApproval} style={{ margin: '18px 0 16px' }}>
                     <div style={{ fontSize: 13, fontWeight: 800, color: '#0B192C', letterSpacing: '0.02em', marginBottom: 6 }}>LEMBAR PENGESAHAN</div>
                     <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 8 }}>Jakarta, {formattedDate}</div>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>

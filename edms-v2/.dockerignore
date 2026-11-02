@@ -1,0 +1,11 @@
+node_modules
+.next
+.python
+.env*
+!.env.example
+storage
+backups
+release
+tests/output
+.git
+*.log

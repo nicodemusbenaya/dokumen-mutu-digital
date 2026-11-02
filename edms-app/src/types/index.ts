@@ -49,6 +49,9 @@ export interface Document {
 }
 
 export interface DocumentDetail extends Document {
+  sourcePath?: string | null;
+  sourceName?: string | null;
+  sourceExt?: string | null;
   sections:  Record<string, string>; // key = section_key, value = HTML content
   refs:      Reference[];
   approvals: Approval[];

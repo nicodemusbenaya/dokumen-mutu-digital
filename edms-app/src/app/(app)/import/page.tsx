@@ -162,7 +162,7 @@ export default function ImportPage() {
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginTop: 16 }}>
           <label
-            title={isAdmin ? 'Hapus dokumen yang kodenya tidak ada di berkas zip' : 'Hanya Admin Sistem'}
+            title={isAdmin ? 'Hapus dokumen Obsolete yang kodenya tidak ada di berkas zip' : 'Hanya Admin Sistem'}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5,
               color: isAdmin ? 'var(--ink)' : 'var(--ink-muted)',
@@ -177,7 +177,7 @@ export default function ImportPage() {
               onChange={e => setSync(e.target.checked)}
               style={{ accentColor: 'var(--pln-blue, #0C4DA2)', cursor: isAdmin ? 'pointer' : 'not-allowed' }}
             />
-            Mode sinkron — hapus dokumen yang tidak ada di zip
+            Mode sinkron - hapus dokumen Obsolete yang tidak ada di zip
           </label>
           <span style={{ flex: 1 }} />
           <button className="btn btn-primary" onClick={handleUpload} disabled={!file || busy}>

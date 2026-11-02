@@ -549,7 +549,7 @@ export default function DocumentsPage() {
                         Edit
                       </Link>
                     )}
-                    {userRole === 'Admin Sistem' && (
+                    {userRole === 'Admin Sistem' && d.status === 'Obsolete' && (
                       <button
                         className="btn btn-xs"
                         style={{ color: 'var(--red)', border: '1px solid var(--red-border)', background: 'var(--red-soft)' }}

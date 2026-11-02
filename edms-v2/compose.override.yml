@@ -1,0 +1,21 @@
+# Merge with the EXISTING production Compose; do not replace cloudflared or secrets.
+# Runtime under /opt/edms avoids being hidden by the existing /app bind mount.
+services:
+  edms-app:
+    image: edms-ups:2.1.0
+    working_dir: /opt/edms
+    command: ["node", "scripts/start.mjs"]
+    # Explicitly retain the inspected live mounts. The saved base Compose still
+    # points /app/storage at edms-data, which differs from the actual container.
+    volumes:
+      - /share/Container/edms-app:/app
+      - /share/Container/edms-app/storage:/app/storage
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      STORAGE_ROOT: /app/storage
+      PYTHON_BIN: python3
+      WORKER_ENABLED: "true"
+    # Existing DB/session secrets, service/container names, ports, network and mounts
+    # are inherited from the production Compose. Verify node UID 1000 can write storage.

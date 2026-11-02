@@ -34,6 +34,7 @@ export default function DocumentDetailPage() {
   const [approvalNote,  setApprovalNote]  = useState('');
   const [approving,     setApproving]     = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [updatingDocument, setUpdatingDocument] = useState(false);
 
   // Dialog "Buat Dokumen dari Template Ini"
   const [formTemplate, setFormTemplate] = useState<TemplateRow | null>(null);
@@ -49,15 +50,21 @@ export default function DocumentDetailPage() {
         penColor: '#1B2A4A',
       });
     }
+    return () => { sigPadRef.current?.off(); sigPadRef.current = null; };
   }, [approvalOpen]);
 
   const fetchDoc = useCallback(async () => {
-    const res = await fetch(`/api/documents/${docId}`);
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/documents/${docId}`);
+      if (!res.ok) throw new Error('Gagal memuat dokumen.');
       const json = await res.json();
       setDoc(json.data);
+    } catch {
+      setMsg('Dokumen gagal dimuat. Periksa koneksi lalu muat ulang halaman.');
+      setMsgType('err');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [docId]);
 
   useEffect(() => { fetchDoc(); }, [fetchDoc]);
@@ -78,26 +85,12 @@ export default function DocumentDetailPage() {
 
   async function handleSubmit() {
     if (!confirm('Ajukan dokumen ini untuk review Tim Mutu?')) return;
-    const res = await fetch(`/api/documents/${docId}/submit`, { method: 'POST' });
-    const json = await res.json();
-    if (res.ok) {
-      notify(json.message);
-      fetchDoc();
-    } else {
-      notify(json.error, 'err');
-    }
+    await updateDocument('submit', 'POST');
   }
 
   async function handleRevise() {
     if (!confirm('Buka siklus revisi? Dokumen akan kembali ke status Draft untuk diedit dan perlu di-approve ulang sebelum Aktif kembali.')) return;
-    const res = await fetch(`/api/documents/${docId}/revise`, { method: 'POST' });
-    const json = await res.json();
-    if (res.ok) {
-      notify(json.message);
-      fetchDoc();
-    } else {
-      notify(json.error || 'Gagal membuka siklus revisi.', 'err');
-    }
+    await updateDocument('revise', 'POST');
   }
 
   async function handleMarkTemplate(mark: boolean) {
@@ -105,42 +98,65 @@ export default function DocumentDetailPage() {
       ? 'Tandai dokumen ini sebagai template? Dokumen berpindah ke pustaka Template dan tidak tampil di Daftar Dokumen (bisa dibatalkan kapan saja).'
       : 'Hapus dari tanda template? Dokumen kembali tampil di Daftar Dokumen. Dokumen TIDAK dihapus.';
     if (!confirm(msg)) return;
-    const res = await fetch(`/api/documents/${docId}/template`, {
-      method: mark ? 'POST' : 'DELETE',
-    });
-    const json = await res.json();
-    if (res.ok) {
-      notify(json.message);
-      fetchDoc();
-    } else {
-      notify(json.error || 'Gagal memperbarui tanda template.', 'err');
+    await updateDocument('template', mark ? 'POST' : 'DELETE');
+  }
+
+  async function updateDocument(action: 'revise' | 'template' | 'submit', method: 'POST' | 'DELETE') {
+    if (updatingDocument) return;
+    setUpdatingDocument(true);
+    try {
+      const res = await fetch(`/api/documents/${docId}/${action}`, { method });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || (res.status === 404
+          ? 'Fitur tidak ditemukan di server. Jalankan ulang aplikasi lokal, lalu coba lagi.'
+          : `Perubahan gagal diproses (HTTP ${res.status}). Silakan coba lagi.`));
+      }
+      if (!json) throw new Error('Respons server tidak valid. Muat ulang halaman, lalu periksa status dokumen.');
+      // Tunggu detail terbaru sebelum membuka kembali tombol aksi.
+      const detailRes = await fetch(`/api/documents/${docId}`, { cache: 'no-store' });
+      if (!detailRes.ok) throw new Error('Perubahan diproses, tetapi detail terbaru gagal dimuat. Muat ulang halaman untuk memeriksa hasilnya.');
+      const detail = await detailRes.json();
+      setDoc(detail.data);
+      notify(json.message || 'Dokumen berhasil diperbarui.');
+      router.refresh();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Gagal menghubungi server. Periksa koneksi lalu coba lagi.', 'err');
+    } finally {
+      setUpdatingDocument(false);
     }
   }
 
   async function handleApprove() {
+    if (approving) return;
     setApproving(true);
-    let signatureData: string | null = null;
-    if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
-      signatureData = sigPadRef.current.toDataURL();
-    }
-    const res = await fetch(`/api/documents/${docId}/approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        stage: approvalStage,
-        action: approvalAction,
-        note: approvalNote,
-        signatureData,
-      }),
-    });
-    const json = await res.json();
-    setApproving(false);
-    setApprovalOpen(false);
-    if (res.ok) {
-      notify(json.message);
-      fetchDoc();
-    } else {
-      notify(json.error, 'err');
+    try {
+      let signatureData: string | null = null;
+      if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+        signatureData = sigPadRef.current.toDataURL();
+      }
+      const res = await fetch(`/api/documents/${docId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: approvalStage,
+          action: approvalAction,
+          note: approvalNote,
+          signatureData,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setApprovalOpen(false);
+        notify(json.message);
+        await fetchDoc();
+      } else {
+        notify(json.error, 'err');
+      }
+    } catch {
+      notify('Gagal menghubungi server. Periksa status dokumen sebelum mencoba lagi.', 'err');
+    } finally {
+      setApproving(false);
     }
   }
   const handleApproval = handleApprove;
@@ -173,7 +189,7 @@ export default function DocumentDetailPage() {
     );
   }
 
-  if (!doc) return <div className="card card-body" style={{textAlign:'center',padding:60}}>Dokumen tidak ditemukan.</div>;
+  if (!doc) return <div className="card card-body" style={{textAlign:'center',padding:60}}>{msg || 'Dokumen tidak ditemukan.'}</div>;
 
   // Hanya approval pada siklus berjalan yang dihitung — approval sintetis hasil
   // import (stage 2 & 3) dan siklus revisi lama tidak boleh menutup tahap saat ini.
@@ -264,7 +280,7 @@ export default function DocumentDetailPage() {
                 <IconEditor size={14} />
                 <span>Edit Dokumen</span>
               </Link>
-              <button className="btn btn-amber btn-sm" onClick={handleSubmit}>
+              <button className="btn btn-amber btn-sm" onClick={handleSubmit} disabled={updatingDocument}>
                 <IconApproval size={14} />
                 <span>Ajukan Review</span>
               </button>
@@ -287,7 +303,7 @@ export default function DocumentDetailPage() {
             <span>{generatingPdf ? 'Generating...' : 'Generate PDF'}</span>
           </button>
           {userCanRevise && (
-            <button className="btn btn-outline btn-sm" onClick={handleRevise}>
+            <button className="btn btn-outline btn-sm" onClick={handleRevise} disabled={updatingDocument}>
               <IconRefresh size={14} />
               <span>Ajukan Revisi</span>
             </button>
@@ -306,12 +322,12 @@ export default function DocumentDetailPage() {
           )}
           {canManageTemplate && (
             doc.isTemplate ? (
-              <button className="btn btn-ghost btn-sm" onClick={() => handleMarkTemplate(false)}>
+              <button className="btn btn-ghost btn-sm" onClick={() => handleMarkTemplate(false)} disabled={updatingDocument}>
                 <IconTemplate size={14} />
                 <span>Hapus dari Tanda Template</span>
               </button>
             ) : (
-              <button className="btn btn-outline btn-sm" onClick={() => handleMarkTemplate(true)}>
+              <button className="btn btn-outline btn-sm" onClick={() => handleMarkTemplate(true)} disabled={updatingDocument}>
                 <IconTemplate size={14} />
                 <span>Jadikan Template</span>
               </button>
@@ -324,6 +340,7 @@ export default function DocumentDetailPage() {
       <div className="tab-bar">
         {[
           { id: 'isi', label: 'Isi Klausul Dokumen' },
+          ...(doc.sourcePath ? [{ id: 'asli', label: 'Dokumen Asli & Tanda Tangan' }] : []),
           { id: 'refs', label: 'Referensi Standard' },
           { id: 'workflow', label: 'Workflow & Pengesahan' },
           { id: 'versi', label: 'Riwayat Versi' },
@@ -384,6 +401,17 @@ export default function DocumentDetailPage() {
               );
             });
           })()}
+        </div>
+      )}
+
+      {/* Tab: Refs */}
+      {tab === 'asli' && (
+        <div className="card card-body">
+          <p style={{ marginBottom: 12 }}>Berkas sumber impor memuat pengesahan dan tanda tangan asli. Riwayat persetujuan dalam aplikasi dicatat terpisah.</p>
+          <a className="btn btn-outline btn-sm" href={`/api/documents/${docId}/source`} target="_blank" rel="noopener noreferrer">Unduh Berkas Asli</a>
+          {doc.sourceExt?.toLowerCase() === 'pdf' && (
+            <iframe title="Dokumen asli beserta lembar pengesahan" src={`/api/documents/${docId}/source?inline=1`} style={{ width: '100%', height: '80vh', border: '1px solid var(--paper-line)', marginTop: 16 }} />
+          )}
         </div>
       )}
 

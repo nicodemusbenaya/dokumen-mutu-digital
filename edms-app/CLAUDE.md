@@ -1,1 +1,3 @@
 @AGENTS.md
+
+Baca ../AGENTS.md dan ../plan.md untuk keputusan 2.1. Source lama dijaga; produksi tetap container/service, DB edms_ups dan mount lama. Data dokumen lama/histori dibersihkan saat transisi setelah backup, akun/config dipertahankan; tidak ada purge pada tugas dokumentasi. Sumber awal Dokumen Final. Upload/update langsung aktif, tanpa approval bertingkat. PDF-ke-Word dengan popup termasuk rilis pertama. UI biru muda/kuning PLN, dua logo lokal, skill UI terpasang relevan. Semua pengujian upload/konversi hanya dummy sintetis; jangan upload dokumen asli untuk test. Jangan reset source atau data secara massal.
