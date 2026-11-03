@@ -1,0 +1,549 @@
+{
+ "title": "FR.UPS.2026.BST.01.03-00 Matriks Potensi Kecurangan dan Pengendaliannya",
+ "previousTitles": [
+  "Form Matriks Potensi Kecurangan dan Pengendaliannya"
+ ],
+ "definition": {
+  "schema": 1,
+  "header": {
+   "code": "FR.UPS.2026.BST.01.03-00",
+   "subtitle": "Matriks Potensi Kecurangan dan Pengendaliannya"
+  },
+  "fields": [
+   {
+    "id": "skema",
+    "type": "text",
+    "label": "Skema/Okupasi Jabatan",
+    "required": true
+   },
+   {
+    "id": "tanggal",
+    "type": "date",
+    "label": "Hari/Tanggal",
+    "required": true
+   },
+   {
+    "id": "mode",
+    "type": "radio",
+    "label": "Mode Uji",
+    "required": true,
+    "options": [
+     "Luring konvensional",
+     "Luring berbasis aplikasi",
+     "Daring"
+    ],
+    "description": "Bagian berikutnya hanya menampilkan potensi kecurangan yang relevan dengan mode uji ini."
+   },
+   {
+    "id": "pengawas",
+    "type": "text",
+    "label": "Nama Pengawas",
+    "required": true
+   },
+   {
+    "id": "petunjuk",
+    "type": "static",
+    "text": "Untuk setiap potensi kecurangan, pilih apakah pengendaliannya telah diterapkan: Ya, Tidak, atau NA (tidak berlaku). Rincian penyebab dan pengendalian ada di tabel tiap kelompok.\nKolom \"Langkah IK\" merujuk pada nomor langkah kerja pada butir 9 Uraian Kegiatan IK.UPS.2026.BST.01-00. Kolom \"Diterapkan\" diisi Pengawas untuk memastikan pengendalian telah dilaksanakan sesuai mode dan metode uji.",
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring konvensional",
+      "Luring berbasis aplikasi",
+      "Daring"
+     ]
+    }
+   },
+   {
+    "id": "h_luring",
+    "type": "heading",
+    "label": "Uji Luring",
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring konvensional",
+      "Luring berbasis aplikasi"
+     ]
+    }
+   },
+   {
+    "id": "luring",
+    "type": "grid",
+    "label": "Penerapan pengendalian – Uji Luring",
+    "required": true,
+    "fixedColumns": [
+     "Potensi Kecurangan",
+     "Penyebab",
+     "Pengendalian",
+     "Langkah IK"
+    ],
+    "choice": {
+     "label": "Diterapkan",
+     "options": [
+      "Ya",
+      "Tidak",
+      "NA"
+     ]
+    },
+    "groups": [
+     {
+      "title": "",
+      "rows": [
+       {
+        "id": "m1",
+        "no": "1",
+        "cells": [
+         "Perjokian/penyamaran peserta",
+         "Verifikasi identitas hanya formalitas",
+         "Pencocokan identitas asli dengan wajah dan daftar peserta; tanda tangan daftar hadir",
+         "9"
+        ]
+       },
+       {
+        "id": "m2",
+        "no": "2",
+        "cells": [
+         "Menyontek atau bertukar jawaban, termasuk melalui isyarat/kode",
+         "Jarak duduk dekat; paket soal sama; Pengawas pasif",
+         "Jarak meja memadai; variasi paket soal; pengawasan aktif berkeliling",
+         "7, 12, 13"
+        ]
+       },
+       {
+        "id": "m3",
+        "no": "3",
+        "cells": [
+         "Menggunakan HP, smartwatch, atau earpiece",
+         "Perangkat masih dibawa ke meja; pemeriksaan longgar",
+         "Penitipan perangkat; pemeriksaan barang bawaan; detektor logam (opsional)",
+         "10, 13"
+        ]
+       },
+       {
+        "id": "m4",
+        "no": "4",
+        "cells": [
+         "Membawa contekan/catatan tidak sah",
+         "Pemeriksaan meja dan area kurang; ketentuan buka/tutup buku tidak jelas",
+         "Pemeriksaan ruang dan meja; tata tertib dibacakan; pengawasan berkala",
+         "7, 10, 11"
+        ]
+       },
+       {
+        "id": "m5",
+        "no": "5",
+        "cells": [
+         "Mencari jawaban/berkomunikasi saat izin keluar ruangan",
+         "Izin keluar tidak diatur dan tidak dicatat",
+         "Izin satu per satu; log keluar–masuk; tanpa perangkat; pemeriksaan ulang",
+         "15"
+        ]
+       },
+       {
+        "id": "m6",
+        "no": "6",
+        "cells": [
+         "Meminta petunjuk jawaban kepada Pengawas",
+         "Batas bantuan Pengawas tidak jelas",
+         "Pengawas hanya menjawab hal teknis/prosedural; substansi diteruskan ke Asesor",
+         "14"
+        ]
+       },
+       {
+        "id": "m7",
+        "no": "7",
+        "cells": [
+         "Memotret/menyalin soal untuk disebarkan",
+         "Perangkat kamera masih dibawa; pengumpulan soal lemah",
+         "Penitipan perangkat; seluruh soal dan kertas dikumpulkan dan dihitung",
+         "10, 40"
+        ]
+       },
+       {
+        "id": "m11",
+        "no": "11",
+        "cells": [
+         "Bantuan pihak lain atau peralatan dikondisikan saat uji praktik",
+         "Area praktik luas; personil pengawas terbatas",
+         "Pembatasan area; pemeriksaan peralatan; observasi langsung; dokumentasi",
+         "29, 30"
+        ]
+       },
+       {
+        "id": "m14",
+        "no": "14",
+        "cells": [
+         "Manipulasi lembar jawaban atau nilai",
+         "Pengumpulan dan koreksi tidak terkendali",
+         "Lembar jawaban bernomor; penyegelan; serah terima tercatat; analisis hasil uji",
+         "12, 41, 45"
+        ]
+       }
+      ]
+     }
+    ],
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring konvensional",
+      "Luring berbasis aplikasi"
+     ]
+    }
+   },
+   {
+    "id": "h_luring_daring",
+    "type": "heading",
+    "label": "Uji Luring dan Daring",
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring konvensional",
+      "Luring berbasis aplikasi",
+      "Daring"
+     ]
+    }
+   },
+   {
+    "id": "luring_daring",
+    "type": "grid",
+    "label": "Penerapan pengendalian – Uji Luring dan Daring",
+    "required": true,
+    "fixedColumns": [
+     "Potensi Kecurangan",
+     "Penyebab",
+     "Pengendalian",
+     "Langkah IK"
+    ],
+    "choice": {
+     "label": "Diterapkan",
+     "options": [
+      "Ya",
+      "Tidak",
+      "NA"
+     ]
+    },
+    "groups": [
+     {
+      "title": "",
+      "rows": [
+       {
+        "id": "m8",
+        "no": "8",
+        "cells": [
+         "Bocoran soal/kunci jawaban sebelum uji",
+         "Distribusi dan penyimpanan materi uji tidak aman; soal dipakai berulang",
+         "Paket tersegel dibuka di depan peserta; serah terima tercatat; rotasi dan randomisasi soal",
+         "8, 12, 38"
+        ]
+       },
+       {
+        "id": "m9",
+        "no": "9",
+        "cells": [
+         "Informasi soal dari peserta sesi sebelumnya",
+         "Soal/paket sama untuk beberapa sesi",
+         "Variasi paket antar sesi; pemisahan peserta yang sudah dan belum diuji",
+         "5, 31"
+        ]
+       },
+       {
+        "id": "m10",
+        "no": "10",
+        "cells": [
+         "Kolusi dengan Pengawas/Asesor/Administrator",
+         "Benturan kepentingan; tidak ada rotasi dan kontrol silang",
+         "Deklarasi benturan kepentingan; rotasi Pengawas; jalur pelaporan independen ke MAN PMKKU/SM UPS; pemantauan independen",
+         "1, 4, 38, 39, 46"
+        ]
+       },
+       {
+        "id": "m12",
+        "no": "12",
+        "cells": [
+         "Pemalsuan atau penggunaan portofolio milik orang lain",
+         "Verifikasi hanya administratif",
+         "Wawancara berbasis bukti; konfirmasi ke penerbit/atasan; sampling",
+         "32"
+        ]
+       },
+       {
+        "id": "m13",
+        "no": "13",
+        "cells": [
+         "Bocoran pertanyaan wawancara/praktik",
+         "Instrumen dipakai berulang tanpa variasi",
+         "Bank pertanyaan/kasus; variasi skenario; pemisahan ruang tunggu",
+         "31"
+        ]
+       }
+      ]
+     }
+    ],
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring konvensional",
+      "Luring berbasis aplikasi",
+      "Daring"
+     ]
+    }
+   },
+   {
+    "id": "h_daring",
+    "type": "heading",
+    "label": "Uji Daring",
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Daring"
+     ]
+    }
+   },
+   {
+    "id": "daring",
+    "type": "grid",
+    "label": "Penerapan pengendalian – Uji Daring",
+    "required": true,
+    "fixedColumns": [
+     "Potensi Kecurangan",
+     "Penyebab",
+     "Pengendalian",
+     "Langkah IK"
+    ],
+    "choice": {
+     "label": "Diterapkan",
+     "options": [
+      "Ya",
+      "Tidak",
+      "NA"
+     ]
+    },
+    "groups": [
+     {
+      "title": "",
+      "rows": [
+       {
+        "id": "m15",
+        "no": "15",
+        "cells": [
+         "Perjokian dalam uji daring",
+         "Autentikasi hanya username/password",
+         "Verifikasi KTP dan wajah melalui kamera; liveness detection; pemeriksaan acak",
+         "24, 25"
+        ]
+       },
+       {
+        "id": "m16",
+        "no": "16",
+        "cells": [
+         "Mengakses internet/AI/sumber jawaban lain",
+         "Browser/aplikasi lain dapat dibuka",
+         "Secure/lockdown browser; deteksi perpindahan tab; randomisasi soal",
+         "6, 25"
+        ]
+       },
+       {
+        "id": "m17",
+        "no": "17",
+        "cells": [
+         "Menggunakan perangkat kedua atau bantuan orang lain di ruangan",
+         "Area di luar jangkauan kamera tidak terkontrol",
+         "Room scan 360°; posisi kamera standar; kamera samping; deteksi suara/wajah lain",
+         "24, 25"
+        ]
+       },
+       {
+        "id": "m18",
+        "no": "18",
+        "cells": [
+         "Remote access, mesin virtual, atau kamera virtual/video rekaman",
+         "Sistem tidak memblokir aplikasi tersebut",
+         "Pemblokiran remote tools, VM, dan kamera virtual; pemeriksaan acak oleh Pengawas",
+         "6, 25"
+        ]
+       },
+       {
+        "id": "m19",
+        "no": "19",
+        "cells": [
+         "Mematikan atau mengalihkan kamera/mikrofon",
+         "Tidak ada standar posisi kamera dan sanksi",
+         "Validasi kamera/mikrofon; peringatan; penghentian sementara; pencatatan",
+         "25"
+        ]
+       },
+       {
+        "id": "m20",
+        "no": "20",
+        "cells": [
+         "Memanipulasi gangguan jaringan untuk tambahan waktu/uji ulang",
+         "Penanganan gangguan tidak baku",
+         "Audit log; auto-save; tambahan waktu/uji ulang hanya berdasarkan bukti dan persetujuan",
+         "26"
+        ]
+       },
+       {
+        "id": "m21",
+        "no": "21",
+        "cells": [
+         "Screenshot/rekam layar soal",
+         "Fitur perekaman tidak diblokir",
+         "Blokir screenshot/rekam layar; watermark identitas peserta; pakta kerahasiaan",
+         "6, 11"
+        ]
+       }
+      ]
+     }
+    ],
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Daring"
+     ]
+    }
+   },
+   {
+    "id": "h_aplikasi",
+    "type": "heading",
+    "label": "Uji Luring Berbasis Aplikasi",
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring berbasis aplikasi"
+     ]
+    }
+   },
+   {
+    "id": "aplikasi",
+    "type": "grid",
+    "label": "Penerapan pengendalian – Uji Luring Berbasis Aplikasi",
+    "required": true,
+    "fixedColumns": [
+     "Potensi Kecurangan",
+     "Penyebab",
+     "Pengendalian",
+     "Langkah IK"
+    ],
+    "choice": {
+     "label": "Diterapkan",
+     "options": [
+      "Ya",
+      "Tidak",
+      "NA"
+     ]
+    },
+    "groups": [
+     {
+      "title": "",
+      "rows": [
+       {
+        "id": "m22",
+        "no": "22",
+        "cells": [
+         "Menggunakan akun peserta lain atau login ganda",
+         "Token/akun dibagikan sebelum verifikasi identitas",
+         "Token dibagikan di meja setelah verifikasi; satu sesi login; pencocokan nama di layar",
+         "18"
+        ]
+       },
+       {
+        "id": "m23",
+        "no": "23",
+        "cells": [
+         "Mengakses situs/aplikasi lain atau AI pada perangkat uji",
+         "Akses internet tidak dibatasi",
+         "Lockdown browser/kiosk mode; whitelist alamat aplikasi; dasbor status peserta",
+         "17, 19"
+        ]
+       },
+       {
+        "id": "m24",
+        "no": "24",
+        "cells": [
+         "Membawa atau menyalin file melalui USB/bluetooth",
+         "Port perangkat aktif; perangkat pribadi digunakan",
+         "Perangkat milik penyelenggara; port USB/bluetooth dinonaktifkan",
+         "17"
+        ]
+       },
+       {
+        "id": "m25",
+        "no": "25",
+        "cells": [
+         "Melihat layar peserta lain",
+         "Tata letak layar terbuka",
+         "Sekat/pembatas layar; Pengawas berkeliling dari belakang",
+         "19"
+        ]
+       },
+       {
+        "id": "m26",
+        "no": "26",
+        "cells": [
+         "Bantuan pihak lain saat uji lisan/praktik berbasis aplikasi",
+         "Asesor jarak jauh tidak melihat seluruh ruangan",
+         "Pengawas di ruang peserta; kamera menampilkan peserta dan area kerja; ruang/bilik terpisah",
+         "20, 21"
+        ]
+       },
+       {
+        "id": "m27",
+        "no": "27",
+        "cells": [
+         "Jejak soal/jawaban tertinggal di perangkat uji",
+         "Cache/riwayat tidak dibersihkan",
+         "Logout seluruh akun; hapus cache, riwayat, dan unduhan; akun dinonaktifkan",
+         "23"
+        ]
+       }
+      ]
+     }
+    ],
+    "showIf": {
+     "field": "mode",
+     "anyOf": [
+      "Luring berbasis aplikasi"
+     ]
+    }
+   },
+   {
+    "id": "catatan",
+    "type": "textarea",
+    "label": "Catatan Pengawas (opsional)"
+   },
+   {
+    "id": "tempat",
+    "type": "text",
+    "label": "Tempat",
+    "required": true
+   },
+   {
+    "id": "tanggal_sah",
+    "type": "date",
+    "label": "Tanggal",
+    "required": true
+   },
+   {
+    "id": "ttd_pengawas",
+    "type": "signature",
+    "label": "Tanda tangan Pengawas",
+    "required": true
+   },
+   {
+    "id": "h_mengetahui",
+    "type": "heading",
+    "label": "Mengetahui"
+   },
+   {
+    "id": "ttd_asesor",
+    "type": "signature",
+    "label": "Tanda tangan Asesor",
+    "required": true
+   },
+   {
+    "id": "ttd_man_psa",
+    "type": "signature",
+    "label": "Tanda tangan MAN PSA"
+   }
+  ]
+ }
+}

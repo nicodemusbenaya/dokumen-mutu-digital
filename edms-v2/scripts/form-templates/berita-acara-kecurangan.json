@@ -1,0 +1,249 @@
+{
+ "title": "FR.UPS.2026.BST.01.02-00 Berita Acara Kejadian/Dugaan Kecurangan",
+ "previousTitles": [
+  "Form Berita Acara Kejadian/Dugaan Kecurangan"
+ ],
+ "definition": {
+  "schema": 1,
+  "header": {
+   "code": "FR.UPS.2026.BST.01.02-00",
+   "subtitle": "Berita Acara Kejadian/Dugaan Kecurangan",
+   "footer": "Formulir ini merupakan bagian tidak terpisahkan dari IK.UPS.2026.BST.01-00 Pengawasan Pelaksanaan Sertifikasi Kompetensi."
+  },
+  "fields": [
+   {
+    "id": "nomor_ba",
+    "type": "text",
+    "label": "Nomor Berita Acara",
+    "required": true
+   },
+   {
+    "id": "h_data",
+    "type": "heading",
+    "label": "Data Kejadian"
+   },
+   {
+    "id": "tanggal",
+    "type": "date",
+    "label": "Hari/Tanggal kejadian",
+    "required": true,
+    "description": "Pada hari dan tanggal ini telah terjadi kejadian/dugaan kecurangan pada pelaksanaan uji kompetensi."
+   },
+   {
+    "id": "waktu_mulai",
+    "type": "time",
+    "label": "Waktu kejadian – mulai (WIB)",
+    "required": true
+   },
+   {
+    "id": "waktu_selesai",
+    "type": "time",
+    "label": "Waktu kejadian – s.d. (WIB)"
+   },
+   {
+    "id": "skema",
+    "type": "text",
+    "label": "Skema/Okupasi Jabatan",
+    "required": true
+   },
+   {
+    "id": "tuk",
+    "type": "text",
+    "label": "TUK/Lokasi/Platform",
+    "required": true
+   },
+   {
+    "id": "metode",
+    "type": "checkbox",
+    "label": "Metode Uji",
+    "required": true,
+    "options": [
+     "Tulis",
+     "Praktik/Observasi",
+     "Lisan",
+     "Portofolio"
+    ]
+   },
+   {
+    "id": "mode",
+    "type": "radio",
+    "label": "Mode Uji",
+    "required": true,
+    "options": [
+     "Luring konvensional",
+     "Luring berbasis aplikasi",
+     "Daring"
+    ]
+   },
+   {
+    "id": "terlapor",
+    "type": "text",
+    "label": "Nama Terlapor (Peserta/Personil)",
+    "required": true
+   },
+   {
+    "id": "peran",
+    "type": "radio",
+    "label": "Peran Terlapor",
+    "required": true,
+    "options": [
+     "Peserta",
+     "Administrator",
+     "Asesor",
+     "Pengawas",
+     "Petugas TI"
+    ]
+   },
+   {
+    "id": "no_peserta",
+    "type": "text",
+    "label": "No. Peserta/No. Meja"
+   },
+   {
+    "id": "h_jenis",
+    "type": "heading",
+    "label": "Jenis Kejadian/Dugaan"
+   },
+   {
+    "id": "jenis",
+    "type": "checkbox",
+    "label": "Jenis kejadian/dugaan",
+    "required": true,
+    "options": [
+     "Perjokian/identitas tidak sesuai",
+     "Menyontek/bekerja sama/isyarat",
+     "Menggunakan perangkat elektronik",
+     "Membawa contekan/catatan tidak sah",
+     "Mendokumentasikan/menyalin soal",
+     "Bocoran soal/kunci jawaban",
+     "Bantuan pihak lain (termasuk uji praktik)",
+     "Pelanggaran ketentuan uji daring",
+     "Pemalsuan dokumen/portofolio",
+     "Dugaan kolusi personil"
+    ],
+    "other": true
+   },
+   {
+    "id": "h_uraian",
+    "type": "heading",
+    "label": "Uraian Kejadian"
+   },
+   {
+    "id": "kronologi",
+    "type": "textarea",
+    "label": "Kronologi Kejadian",
+    "required": true,
+    "description": "Apabila peserta menolak menandatangani berita acara, catat penolakan tersebut di sini."
+   },
+   {
+    "id": "barang_bukti",
+    "type": "textarea",
+    "label": "Barang Bukti yang Diamankan (alat/catatan/foto/tangkapan layar/rekaman)"
+   },
+   {
+    "id": "tindakan",
+    "type": "textarea",
+    "label": "Tindakan yang Dilakukan Pengawas",
+    "required": true
+   },
+   {
+    "id": "h_sanksi",
+    "type": "heading",
+    "label": "Rekomendasi Tingkat Pelanggaran dan Sanksi (sesuai Tabel Ketentuan Sanksi IK)"
+   },
+   {
+    "id": "tingkat",
+    "type": "radio",
+    "label": "Tingkat pelanggaran",
+    "required": true,
+    "options": [
+     "Ringan",
+     "Sedang",
+     "Berat"
+    ]
+   },
+   {
+    "id": "sanksi_peserta",
+    "type": "radio",
+    "label": "Rekomendasi sanksi – Peserta",
+    "required": true,
+    "options": [
+     "Peringatan",
+     "Dikeluarkan, BK, dan dilaporkan kepada HCBP",
+     "Hasil uji dibatalkan/sertifikat dicabut"
+    ],
+    "showIf": {
+     "field": "peran",
+     "anyOf": [
+      "Peserta"
+     ]
+    }
+   },
+   {
+    "id": "sanksi_personil",
+    "type": "radio",
+    "label": "Rekomendasi sanksi – Personil",
+    "required": true,
+    "options": [
+     "Teguran tertulis",
+     "Penundaan penugasan",
+     "Pemberhentian penugasan"
+    ],
+    "showIf": {
+     "field": "peran",
+     "anyOf": [
+      "Administrator",
+      "Asesor",
+      "Pengawas",
+      "Petugas TI"
+     ]
+    }
+   },
+   {
+    "id": "lama_penundaan",
+    "type": "text",
+    "label": "Lama penundaan penugasan (bulan)",
+    "required": true,
+    "format": "number",
+    "showIf": {
+     "field": "sanksi_personil",
+     "anyOf": [
+      "Penundaan penugasan"
+     ]
+    }
+   },
+   {
+    "id": "catatan",
+    "type": "static",
+    "text": "Catatan: rekomendasi diisi Pengawas/Asesor; penetapan sanksi dilakukan oleh pejabat berwenang sesuai IK.\nDemikian berita acara ini dibuat dengan sebenar-benarnya untuk ditindaklanjuti sesuai ketentuan yang berlaku."
+   },
+   {
+    "id": "h_ttd",
+    "type": "heading",
+    "label": "Tanda Tangan"
+   },
+   {
+    "id": "ttd_peserta",
+    "type": "signature",
+    "label": "Tanda tangan Peserta"
+   },
+   {
+    "id": "ttd_pengawas",
+    "type": "signature",
+    "label": "Tanda tangan Pengawas",
+    "required": true
+   },
+   {
+    "id": "ttd_saksi",
+    "type": "signature",
+    "label": "Tanda tangan Saksi"
+   },
+   {
+    "id": "ttd_asesor",
+    "type": "signature",
+    "label": "Tanda tangan Asesor/Ketua Tim Uji",
+    "required": true
+   }
+  ]
+ }
+}
