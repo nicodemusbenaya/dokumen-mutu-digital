@@ -14,6 +14,7 @@ import {filenameIdentity} from './filename-identity.mjs';
 import {skipImportItem,resolveImportItem} from './import-actions.mjs';
 import {departmentsMatch} from './document-classification.mjs';
 import {listDocumentMap,updateDocumentMap,readRegisteredDocumentDate} from './document-map.mjs';
+import {forms,publicForms} from './forms-api.mjs';
 const MAX_CHUNK=4*1024*1024;
 async function body(req,max=32768){const reader=req.body?.getReader();if(!reader)return Buffer.alloc(0);let size=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>max){await reader.cancel();fail('Payload terlalu besar',413);}chunks.push(value);}return Buffer.concat(chunks);}
 const json=async req=>{try{return JSON.parse((await body(req,131072)).toString());}catch(e){if(e.status)throw e;fail('JSON tidak valid');}};
@@ -23,12 +24,13 @@ async function getFile(fileId,user){const [f]=await query('SELECT f.*,v.document
 export async function handle(req,segments){try{
  const method=req.method,url=new URL(req.url),[area,key,operation]=segments;
  if(method!=='GET'&&method!=='HEAD')origin(req);
- if(area==='health'&&method==='GET'){try{await query('SELECT 1');await ensure();return response({ok:true,version:'2.1.7',database:true});}catch{return response({ok:false,error:'Database atau storage belum siap'},503);}}
+ if(area==='health'&&method==='GET'){try{await query('SELECT 1');await ensure();return response({ok:true,version:'2.1.8',database:true});}catch{return response({ok:false,error:'Database atau storage belum siap'},503);}}
  if(area==='login'&&method==='POST'){
   await rate(req,'login',20);const data=await json(req),username=text(data.username,60);const [u]=await query('SELECT u.id,u.username,u.full_name fullName,u.password_hash,u.bidang,r.name role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.username=? AND u.is_active=1',[username]);
   if(!u||typeof data.password!=='string'||data.password.length>200||!await bcrypt.compare(data.password,u.password_hash))fail('Username atau password salah',401);
   const result=response({user:{id:u.id,username:u.username,fullName:u.fullName,role:u.role,bidang:u.bidang}});result.cookies.set(cookie(),await token({uid:u.id}),{httpOnly:true,secure:process.env.COOKIE_SECURE==='true'||url.protocol==='https:',sameSite:'lax',path:'/',maxAge:28800});await audit(null,u,req,'LOGIN');return result;
  }
+ const shared=await publicForms(req,segments,{body,response});if(shared)return shared;
  const user=await actor(req);
  if(area==='document-map'){
   if(method==='GET'&&!key)return response(await listDocumentMap());
@@ -37,6 +39,7 @@ export async function handle(req,segments){try{
   fail('Aksi Peta Dokumen tidak didukung',405);
  }
  const managed=await management(req,segments,user,json,response);if(managed)return managed;
+ const formResult=await forms(req,segments,user,{body,response});if(formResult)return formResult;
  if(area==='me')return response({user,canUpload:editable(user)});
  if(area==='logout'&&method==='POST'){await audit(null,user,req,'LOGOUT');const r=response({ok:true});r.cookies.set(cookie(),'',{httpOnly:true,path:'/',maxAge:0});return r;}
  if(area==='stats'&&method==='GET'){const [stats]=await query("SELECT COUNT(*) documents,COALESCE(SUM(active_version-1),0) revisions,COUNT(DISTINCT department) departments FROM v2_documents WHERE status='Aktif'");const [files]=await query('SELECT COUNT(*) files,COALESCE(SUM(size),0) bytes FROM v2_files');const recent=await query("SELECT id,code,title,department,active_version activeVersion,updated_at updatedAt FROM v2_documents WHERE status='Aktif' ORDER BY updated_at DESC LIMIT 5");return response({...stats,...files,recent});}
@@ -104,4 +107,4 @@ export async function handle(req,segments){try{
  }
  if(area==='audit'&&method==='GET'){const page=Math.max(1,Number(url.searchParams.get('page'))||1);const args=[],clauses=[];if(user.role!=='Super user'){clauses.push('actor_id=?');args.push(user.id);}if(url.searchParams.get('documentId')){const d=await document(uuid(url.searchParams.get('documentId')));if(!editable(user,d))fail('Tidak berhak melihat histori lengkap',403);clauses.push('document_id=?');args.push(d.id);}const where=clauses.length?' WHERE '+clauses.join(' AND '):'';const [count]=await query('SELECT COUNT(*) total FROM v2_audit'+where,args);return response({total:count.total,page,events:await query('SELECT id,actor_name actorName,action,document_id documentId,context_json context,created_at createdAt FROM v2_audit'+where+' ORDER BY id DESC LIMIT 30 OFFSET '+((page-1)*30),args)});}
  fail('Endpoint tidak ditemukan',404);
- }catch(e){if(e.code==='ER_DUP_ENTRY'){e.status=409;e.message='Username atau kode sudah digunakan';}const known=Number(e.status)||0;const status=known>=400&&known<600?known:503;if(!known)console.error('API error',e.code||e.name);return response({error:known?e.message:'Layanan belum siap. Periksa database/storage atau coba kembali.'},status);}}
+ }catch(e){if(e.code==='ER_DUP_ENTRY'){e.status=409;e.message='Username atau kode sudah digunakan';}const known=Number(e.status)||0;const status=known>=400&&known<600?known:503;if(!known)console.error('API error',e.code||e.name);return response({error:known?e.message:'Layanan belum siap. Periksa database/storage atau coba kembali.',...(known&&e.fields&&{fields:e.fields}),...(known&&e.loginRequired&&{loginRequired:true}),...(known&&e.versionChanged&&{versionChanged:true})},status);}}

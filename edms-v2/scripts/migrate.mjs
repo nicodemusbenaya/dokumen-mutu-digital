@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import {pool,query} from '../src/lib/db.mjs';
 import {migrateFolderData} from './folder-migration.mjs';
 import {explorerSqlForDatabase} from './explorer-schema.mjs';
-const migrations=[['001','001_v2.sql'],['002','002_management.sql'],['003','003_masters.sql'],['005','005_upload_folders.sql'],['006','006_file_explorer.sql'],['007','007_document_map.sql'],['008','008_lampiran.sql']];
+const migrations=[['001','001_v2.sql'],['002','002_management.sql'],['003','003_masters.sql'],['005','005_upload_folders.sql'],['006','006_file_explorer.sql'],['007','007_document_map.sql'],['008','008_lampiran.sql'],['009','009_forms.sql']];
 const args=process.argv.slice(2);
 if(args.length&&!(args.length===2&&args[0]==='--only'&&migrations.some(([v])=>v===args[1])))throw new Error('Gunakan npm run migrate atau npm run migrate -- --only <versi>');
 const selected=args.length?migrations.filter(([v])=>v===args[1]):migrations;
@@ -26,6 +26,10 @@ if(args[1]==='007'){
 if(args[1]==='008'){
  const dependencies=await query("SELECT version FROM v2_migrations WHERE version IN ('003','006','007')");
  if(dependencies.length!==3)throw new Error('Schema 003/006/007 belum lengkap sebelum migrasi Lampiran 008.');
+}
+if(args[1]==='009'){
+ const dependencies=await query("SELECT version FROM v2_migrations WHERE version IN ('001')");
+ if(dependencies.length!==1)throw new Error('Schema fondasi 001 belum lengkap sebelum migrasi Form 009.');
 }
 for(const [version,file] of selected){
  const source=await fs.readFile(new URL('../sql/'+file,import.meta.url),'utf8');
