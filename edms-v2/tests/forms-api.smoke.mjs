@@ -27,7 +27,7 @@ const stale=await api('public-forms/'+token,{method:'POST',auth:false,body:{vers
 const sent=await api('public-forms/'+token,{method:'POST',auth:false,body:{version:pub.data.version,answers:{nama:'DUMMY Pengisi',ttd:{name:'DUMMY',image:PNG}}}});assert.equal(sent.status,201);
 const list=await api('forms/'+fid+'/submissions');assert.equal(list.data.total,1);assert.equal(list.data.submissions[0].submitterLabel,'Anonim (link publik)');
 assert.equal((await api('form-submissions/'+sent.data.id)).data.answers.ttd.name,'DUMMY');
-const pr=await api('forms/'+fid+'/print');assert.ok(pr.submissions.length>=1);assert.ok(pr.submissions.every(x=>x.definition&&x.answers));
+const pr=await api('forms/'+fid+'/print');assert.ok(pr.data.submissions.length>=1);assert.ok(pr.data.submissions.every(x=>x.definition&&x.answers));
 const xlsx=await api('forms/'+fid+'/export?format=xlsx',{raw:true});assert.equal(xlsx.status,200);assert.equal(Buffer.from(await xlsx.arrayBuffer()).subarray(0,2).toString(),'PK');
 detail=await api('forms/'+fid);
 assert.equal((await api('forms/'+fid,{method:'PUT',body:{title:detail.data.title,access:'login',definition,expectedVersion:detail.data.lockVersion}})).status,200);
@@ -37,7 +37,17 @@ assert.equal((await api('public-forms/'+token)).status,200,'pengguna login boleh
 assert.equal((await api('forms/'+fid,{method:'DELETE'})).status,409,'form berjawaban tidak boleh dihapus');
 assert.equal((await api('form-submissions/'+sent.data.id,{method:'DELETE'})).status,200);
 assert.equal((await api('forms/'+fid+'/submissions')).data.total,0);
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{dryRun:true}})).status,409,'purge ditolak selama form dipublish');
 assert.equal((await api('forms/'+fid+'/close',{method:'POST',body:{}})).status,200);
 assert.equal((await api('public-forms/'+token)).status,404,'form tertutup tidak tersedia');
+// Hapus permanen: jawaban yang sudah disembunyikan ikut terhitung; tanpa konfirmasi ditolak; periode lain tidak tersentuh.
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{dryRun:true}})).data.count,1);
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{dryRun:true,from:'2000-01-01',to:'2000-01-31'}})).data.count,0);
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{from:'2026-13-01'}})).status,400,'tanggal tidak valid');
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{}})).status,400,'wajib ketik HAPUS');
+const today=new Date(Date.now()+7*3600e3).toISOString().slice(0,10);
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{from:today,to:today,confirm:'HAPUS'}})).data.deleted,1);
+assert.equal((await api('forms/'+fid+'/purge',{method:'POST',body:{dryRun:true}})).data.count,0);
+assert.equal((await api('forms/'+fid,{method:'DELETE'})).status,200,'form tanpa jawaban sisa boleh dihapus');
 assert.equal((await api('forms',{auth:false})).status,401,'API kelola butuh login');
-console.log('SMOKE OK — form DUMMY',fid,'(status closed)');
+console.log('SMOKE OK — form DUMMY',fid,'(jawaban dihapus permanen, form dihapus)');
