@@ -1,6 +1,6 @@
 # Update NAS 2.1.9 — Form Zoho (read-only)
 
-Isi rilis: menu **Form** sekarang hanya **menampilkan entri dari Zoho Forms**. Entri dikirim Zoho lewat webhook dan tampil dalam hitungan detik. Builder, link isi publik (`/f/...`), dan isi form di EDMS dihapus. Untuk 4 form FR.UPS/Kode Etik tersedia: daftar entri, detail, Download Excel, dan Cetak/Simpan PDF per entri. Super user dapat menambah form Zoho lain dari menu Form (tombol **Tambah form**). Pemasangan webhook di Zoho dijelaskan di [FORM_ZOHO_WEBHOOK.md](FORM_ZOHO_WEBHOOK.md).
+Isi rilis: menu **Form** sekarang hanya **menampilkan entri dari Zoho Forms**. Entri dikirim Zoho lewat webhook dan tampil dalam hitungan detik. Builder, link isi publik (`/f/...`), dan isi form di EDMS dihapus. Untuk 4 form FR.UPS/Kode Etik tersedia: daftar entri, detail, Download Excel, dan Cetak/Simpan PDF per entri. Super user dapat menambah form Zoho lain (tombol **Tambah form**) dan mengimpor jawaban lama dari CSV Export Zoho (tombol **Impor entri lama**). Pemasangan webhook di Zoho dijelaskan di [FORM_ZOHO_WEBHOOK.md](FORM_ZOHO_WEBHOOK.md).
 
 Perubahan database (migrasi 010):
 - Tabel baru `v2_zoho_forms` (4 form) dan `v2_zoho_entries`, plus izin SELECT/INSERT/UPDATE/DELETE akun runtime hanya pada dua tabel itu.

@@ -1,11 +1,11 @@
 'use client';
-import {useEffect,useState,FormEvent} from 'react';
+import {useEffect,useRef,useState,FormEvent} from 'react';
 import {useResource} from './useResource';
-import {IconArrowLeft,IconDownload,IconPlus,IconRefresh,IconTemplate} from './Icons';
+import {IconArrowLeft,IconDownload,IconFileText,IconPlus,IconRefresh,IconTemplate} from './Icons';
 import s from './Forms.module.css';
 import w from '../app/workspace.module.css';
 type ZohoForm={slug:string;title:string;zohoUrl:string|null;entries:number;lastAt:string|null;hasKey:boolean;webhookKey?:string|null};
-type Entry={id:string;receivedAt:string;payload:Record<string,unknown>};
+type Entry={id:string;receivedAt:string;source:'webhook'|'import';payload:Record<string,unknown>};
 const REFRESH_MS=10000;
 const when=(v:string|null)=>v?new Date(v.replace(' ','T')).toLocaleString('id-ID'):'–';
 const cell=(v:unknown):string=>v==null?'':Array.isArray(v)?v.map(cell).filter(Boolean).join('; '):typeof v==='object'?Object.entries(v as object).map(([k,x])=>k+': '+cell(x)).join(', '):String(v);
@@ -18,7 +18,7 @@ export function FormsWorkspace({user}:{user:{role:string}}){
  const list=useResource<{forms:ZohoForm[]}>('zoho-forms');
  const [open,setOpen]=useState<string|null>(null);
  useAutoReload(list.reload);
- if(open)return <Entries key={open} slug={open} back={()=>{setOpen(null);list.reload();}}/>;
+ if(open)return <Entries key={open} slug={open} admin={user.role==='Super user'} back={()=>{setOpen(null);list.reload();}}/>;
  const forms=list.data?.forms||[];
  return <>
   <div className={w.pageHead}><div><h1>Form</h1><p>Form diisi di Zoho Forms. Setiap entri baru otomatis masuk ke sini dalam hitungan detik.</p></div></div>
@@ -29,22 +29,32 @@ export function FormsWorkspace({user}:{user:{role:string}}){
  </>;
 }
 
-function Entries({slug,back}:{slug:string;back:()=>void}){
- const [page,setPage]=useState(1),[selected,setSelected]=useState<Entry|null>(null);
+function Entries({slug,admin,back}:{slug:string;admin:boolean;back:()=>void}){
+ const [page,setPage]=useState(1),[selected,setSelected]=useState<Entry|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const file=useRef<HTMLInputElement>(null);
  const list=useResource<{title:string;zohoUrl:string|null;total:number;entries:Entry[]}>(`zoho-forms/${slug}/entries?page=${page}`);
  useAutoReload(list.reload);
+ async function importCsv(f:File){
+  if(!/.csv$/i.test(f.name)){setError('Pilih file CSV hasil Export dari Zoho (All Entries → Export → CSV).');return;}
+  if(!window.confirm('Impor jawaban dari "'+f.name+'" ke form ini? Pastikan file berasal dari form yang sama di Zoho. Jawaban yang sudah ada tidak digandakan.'))return;
+  setBusy(true);setError('');setNotice('');
+  try{const r=await fetch(`/api/v2/zoho-forms/${slug}/import`,{method:'POST',headers:{'Content-Type':'text/csv'},body:f});const res=await r.json();if(!r.ok)throw new Error(res.error||'Impor gagal');setNotice(`${res.inserted} jawaban diimpor dari ${res.total} baris${res.skipped?`, ${res.skipped} dilewati karena sudah ada`:''}.`);setPage(1);list.reload();}
+  catch(err:any){setError(err.message);}finally{setBusy(false);if(file.current)file.current.value='';}
+ }
  const d=list.data,entries=d?.entries||[],pages=Math.max(1,Math.ceil((d?.total||0)/50));
  // Semua kolom form tampil sesuai urutan field kiriman Zoho (per form, tidak digabung); geser tabel ke samping bila lebar.
  const cols=[...new Set(entries.flatMap(e=>Object.keys(e.payload)))];
  return <>
   <button className={w.back} onClick={back}><IconArrowLeft/>Kembali ke daftar form</button>
-  <div className={w.pageHead}><div><h1>{d?.title||'Entri form'}</h1><p>{d?d.total+' entri. Diperbarui otomatis tiap 10 detik.':'…'}</p></div><div className={s.exportActions}><button className={w.secondary} onClick={list.reload}><IconRefresh/>Muat ulang</button><a className={w.secondary} href={`/api/v2/zoho-forms/${slug}/export`}><IconDownload/>Download Excel</a></div></div>
+  <div className={w.pageHead}><div><h1>{d?.title||'Entri form'}</h1><p>{d?d.total+' entri. Diperbarui otomatis tiap 10 detik.':'…'}</p></div><div className={s.exportActions}><button className={w.secondary} onClick={list.reload}><IconRefresh/>Muat ulang</button><a className={w.secondary} href={`/api/v2/zoho-forms/${slug}/export`}><IconDownload/>Download Excel</a>{admin&&<><button className={w.secondary} disabled={busy} onClick={()=>file.current?.click()}><IconFileText/>{busy?'Mengimpor…':'Impor entri lama (CSV Zoho)'}</button><input ref={file} type="file" accept=".csv,text/csv" hidden onChange={e=>{const f=e.target.files?.[0];if(f)importCsv(f);}}/></>}</div></div>
+  {error&&<div role="alert" className={w.error}>{error}<button onClick={()=>setError('')}>Tutup</button></div>}
+  {notice&&<div role="status" className={w.notice}>{notice}<button onClick={()=>setNotice('')}>Tutup</button></div>}
   <section className={w.panel}>{list.loading&&!d?<p role="status" className={w.empty}>Memuat entri…</p>:list.error?<div role="alert" className={w.error}>{list.error}<button onClick={list.reload}>Coba lagi</button></div>:!entries.length?<p className={w.empty}>Belum ada entri. Entri muncul di sini setelah ada yang mengisi form di Zoho.</p>:<>
-   <div className={w.tableScroll}><table><thead><tr><th>Aksi</th><th>Diterima</th>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{entries.map(e=><tr key={e.id} aria-selected={selected?.id===e.id}><td><button className={w.textButton} onClick={()=>setSelected(e)}>Lihat</button></td><td className={s.nowrap}>{when(e.receivedAt)}</td>{cols.map(c=>{const v=cell(e.payload[c]);return <td key={c} className={s.entryCell} title={v.length>60?v:undefined}>{v.length>60?v.slice(0,60)+'…':v}</td>;})}</tr>)}</tbody></table></div>
+   <div className={w.tableScroll}><table><thead><tr><th>Aksi</th><th>Waktu</th>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{entries.map(e=><tr key={e.id} aria-selected={selected?.id===e.id}><td><button className={w.textButton} onClick={()=>setSelected(e)}>Lihat</button></td><td className={s.nowrap}>{when(e.receivedAt)}</td>{cols.map(c=>{const v=cell(e.payload[c]);return <td key={c} className={s.entryCell} title={v.length>60?v:undefined}>{v.length>60?v.slice(0,60)+'…':v}</td>;})}</tr>)}</tbody></table></div>
    {pages>1&&<div className={w.pagination}><button className={w.secondary} disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Sebelumnya</button><span>Halaman {page} dari {pages}</span><button className={w.secondary} disabled={page>=pages} onClick={()=>setPage(p=>p+1)}>Berikutnya</button></div>}
   </>}</section>
   {selected&&<section className={`${w.panel} ${s.detail}`} aria-label="Detail entri" data-print-entry>
-   <div className={w.sectionHead}><div><h2>Detail entri</h2><p className={w.muted}>Diterima {when(selected.receivedAt)}</p></div><div className={s.actions}><button className={w.secondary} onClick={printEntry}>Cetak / Simpan PDF</button><button className={w.textButton} onClick={()=>setSelected(null)}>Tutup</button></div></div>
+   <div className={w.sectionHead}><div><h2>Detail entri</h2><p className={w.muted}>{when(selected.receivedAt)} · {selected.source==='import'?'Impor CSV Zoho':'Webhook Zoho'}</p></div><div className={s.actions}><button className={w.secondary} onClick={printEntry}>Cetak / Simpan PDF</button><button className={w.textButton} onClick={()=>setSelected(null)}>Tutup</button></div></div>
    <dl className={s.entry}>{Object.entries(selected.payload).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{cell(v)||'–'}</dd></div>)}</dl>
   </section>}
  </>;

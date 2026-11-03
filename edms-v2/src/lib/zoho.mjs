@@ -1,6 +1,6 @@
 // Form Zoho: entri diisi di Zoho Forms, dikirim ke EDMS lewat webhook dan hanya ditampilkan (read-only).
 import crypto from 'node:crypto';
-import {query} from './db.mjs';
+import {query,withTransaction,rows} from './db.mjs';
 import {id,fail,editable,text} from './core.mjs';
 import {audit,rate} from './security.mjs';
 import {toXlsx} from './xlsx.mjs';
@@ -24,6 +24,39 @@ export function cell(v){
  if(typeof v==='object')return Object.entries(v).map(([k,x])=>k+': '+cell(x)).join(', ');
  return String(v);
 }
+// CSV export Zoho (RFC 4180: kutip, "" di dalam kutip, baris baru di dalam sel); pemisah koma atau titik koma.
+export function parseCsv(text){
+ const src=String(text).replace(/^﻿/,''),first=src.slice(0,src.search(/\r?\n|$/));
+ const sep=(first.match(/;/g)||[]).length>(first.match(/,/g)||[]).length?';':',';
+ const rows=[];let row=[],field='',quoted=false;
+ for(let i=0;i<src.length;i++){
+  const ch=src[i];
+  if(quoted){if(ch==='"'){if(src[i+1]==='"'){field+='"';i++;}else quoted=false;}else field+=ch;continue;}
+  if(ch==='"')quoted=true;
+  else if(ch===sep){row.push(field);field='';}
+  else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&src[i+1]==='\n')i++;row.push(field);rows.push(row);row=[];field='';}
+  else field+=ch;
+ }
+ if(quoted)fail('File CSV tidak valid: tanda kutip tidak tertutup');
+ if(field||row.length){row.push(field);rows.push(row);}
+ return rows.filter(r=>r.some(v=>v.trim()));
+}
+const MONTHS={jan:1,feb:2,mar:3,apr:4,may:5,mei:5,jun:6,jul:7,aug:8,agu:8,agt:8,sep:9,oct:10,okt:10,nov:11,dec:12,des:12};
+// "Added Time" Zoho (mis. 03-Nov-2026 10:20:30 atau 2026-11-03 10:20:30) -> DATETIME; selain itu null.
+export function zohoTime(v){
+ const s=String(v||'').trim();let m=s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/),y,mo,d,h,mi,se;
+ if(m)[,y,mo,d,h,mi,se]=m;else if((m=s.match(/^(\d{1,2})[-/ ]([A-Za-z]{3})[A-Za-z]*[-/ ](\d{4})[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?/i))){[,d,mo,y,h,mi,se]=m;mo=MONTHS[mo.toLowerCase()];if(!mo)return null;const ap=(m[7]||'').toUpperCase();h=Number(h);if(ap==='PM'&&h<12)h+=12;if(ap==='AM'&&h===12)h=0;}else return null;
+ const p=n=>String(n).padStart(2,'0'),out=`${y}-${p(mo)}-${p(d)} ${p(h)}:${p(mi)}:${p(se||0)}`;
+ return Number(mo)>=1&&Number(mo)<=12&&Number(d)>=1&&Number(d)<=31&&Number(h)<24&&Number(mi)<60?out:null;
+}
+const TIME_COLUMNS=['Added Time','Waktu Ditambahkan','Submitted Time','Added_Time'];
+export function csvEntries(text){
+ const rows=parseCsv(text);if(rows.length<2)fail('File CSV kosong atau tidak memiliki baris jawaban');
+ const head=rows[0].map((h,i)=>h.trim()||'Kolom '+(i+1)),timeCol=head.findIndex(h=>TIME_COLUMNS.includes(h));
+ if(new Set(head).size!==head.length)fail('Judul kolom CSV ada yang sama. Export ulang dari Zoho.');
+ if(rows.length-1>20000)fail('Maksimal 20.000 jawaban per impor');
+ return rows.slice(1).map(r=>({payload:Object.fromEntries(head.map((h,i)=>[h,(r[i]??'').trim()])),time:timeCol>=0?zohoTime(r[timeCol]):null}));
+}
 export function columns(entries){const seen=new Set();for(const e of entries)for(const k of Object.keys(e.payload))seen.add(k);return [...seen];}
 
 export async function zohoWebhook(req,segments,{body,response}){
@@ -40,7 +73,7 @@ export async function zohoWebhook(req,segments,{body,response}){
 }
 
 async function form(slug){const [f]=await query('SELECT * FROM v2_zoho_forms WHERE slug=?',[String(slug).slice(0,80)]);if(!f)fail('Form tidak ditemukan',404);return f;}
-const entryRow=e=>({id:e.id,receivedAt:e.received_at,payload:JSON.parse(e.payload_json)});
+const entryRow=e=>({id:e.id,receivedAt:e.received_at,source:e.source,payload:JSON.parse(e.payload_json)});
 
 // Kode form dari nama link Zoho (atau judul): huruf kecil, angka dan tanda hubung.
 export const slugify=v=>String(v).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,70)||'form';
@@ -73,16 +106,24 @@ export async function zohoForms(req,segments,user,{body,response}){
   await audit(null,user,req,'ZOHO_WEBHOOK_KEY',null,{form:f.slug});
   return response({webhookKey:key});
  }
+ if(operation==='import'&&method==='POST'){
+  // Impor sekali jawaban lama dari CSV export Zoho. Impor ulang file yang sama tidak menggandakan entri.
+  if(!admin)fail('Hanya Super user yang dapat mengimpor entri',403);
+  const list=csvEntries((await body(req,20*1048576)).toString('utf8'));
+  const inserted=await withTransaction(async c=>{let n=0;for(const e of list){const json=JSON.stringify(e.payload);const r=await rows(c,'INSERT IGNORE INTO v2_zoho_entries(id,form_slug,payload_hash,payload_json,source,received_at) VALUES(?,?,?,?,?,COALESCE(?,CURRENT_TIMESTAMP(3)))',[id(),f.slug,sha(f.slug+'\n'+json),json,'import',e.time]);n+=r.affectedRows;}return n;});
+  await audit(null,user,req,'ZOHO_FORM_IMPORT',null,{form:f.slug,rows:list.length,inserted});
+  return response({total:list.length,inserted,skipped:list.length-inserted});
+ }
  if(operation==='entries'&&method==='GET'){
   const page=Math.max(1,Number(url.searchParams.get('page'))||1);
   const [count]=await query('SELECT COUNT(*) total FROM v2_zoho_entries WHERE form_slug=?',[f.slug]);
-  const list=(await query('SELECT id,received_at,payload_json FROM v2_zoho_entries WHERE form_slug=? ORDER BY received_at DESC,id LIMIT 50 OFFSET '+((page-1)*50),[f.slug])).map(entryRow);
+  const list=(await query('SELECT id,received_at,source,payload_json FROM v2_zoho_entries WHERE form_slug=? ORDER BY received_at DESC,id LIMIT 50 OFFSET '+((page-1)*50),[f.slug])).map(entryRow);
   return response({title:f.title,zohoUrl:f.zoho_url,total:Number(count.total),page,entries:list});
  }
  if(operation==='export'&&method==='GET'){
   // ponytail: semua entri dimuat sekaligus; cukup untuk ribuan entri form internal, ganti ke batch bila jauh lebih besar.
-  const list=(await query('SELECT id,received_at,payload_json FROM v2_zoho_entries WHERE form_slug=? ORDER BY received_at,id',[f.slug])).map(entryRow);
-  const cols=columns(list),table=[['Diterima EDMS',...cols],...list.map(e=>[String(e.receivedAt),...cols.map(c=>cell(e.payload[c]))])];
+  const list=(await query('SELECT id,received_at,source,payload_json FROM v2_zoho_entries WHERE form_slug=? ORDER BY received_at,id',[f.slug])).map(entryRow);
+  const cols=columns(list),table=[['Waktu','Sumber',...cols],...list.map(e=>[String(e.receivedAt),e.source==='import'?'Impor CSV':'Webhook',...cols.map(c=>cell(e.payload[c]))])];
   await audit(null,user,req,'ZOHO_FORM_EXPORT',null,{form:f.slug,rows:list.length});
   const name=`${f.title.slice(0,80)}-entri-${new Date().toISOString().slice(0,10).replaceAll('-','')}.xlsx`,ascii=name.replace(/[^\w.\-]+/g,'_');
   return new Response(await toXlsx(table),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':`attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,'Cache-Control':'no-store'}});

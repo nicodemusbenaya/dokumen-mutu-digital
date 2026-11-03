@@ -26,3 +26,15 @@ test('kode form dan link Zoho', async()=>{
  assert.equal(zohoLink('https://forms.zoho.com/plnups/form/ABC'),'https://forms.zoho.com/plnups/form/ABC');
  for(const bad of ['http://forms.zoho.com/x','https://forms.zoho.com.evil.com/x','https://evil.com/x','javascript:alert(1)'])assert.throws(()=>zohoLink(bad));
 });
+test('CSV export Zoho: kutip, baris baru dalam sel, BOM, titik koma, Added Time', async()=>{
+ const {parseCsv,csvEntries}=await import('../src/lib/zoho.mjs');
+ assert.deepEqual(parseCsv('\uFEFFa,b\r\n"x, y","say ""hi""\nbaris 2"\r\n\r\n'),[['a','b'],['x, y','say "hi"\nbaris 2']]);
+ assert.deepEqual(parseCsv('a;b\n1;2'),[['a','b'],['1','2']]);
+ assert.throws(()=>parseCsv('a\n"tidak tertutup'));
+ const e=csvEntries('Added Time,Nama,Catatan\n03-Nov-2026 02:05:00 PM,DUMMY A,\n,DUMMY B,ok\n');
+ assert.equal(e.length,2);
+ assert.deepEqual(e[0],{payload:{'Added Time':'03-Nov-2026 02:05:00 PM',Nama:'DUMMY A',Catatan:''},time:'2026-11-03 14:05:00'});
+ assert.equal(e[1].time,null);
+ assert.throws(()=>csvEntries('Nama\n'));
+ assert.throws(()=>csvEntries('Nama,Nama\nA,B'));
+});

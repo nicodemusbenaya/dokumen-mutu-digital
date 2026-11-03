@@ -42,9 +42,24 @@ URL itu bersifat rahasia, karena siapa pun yang memegangnya bisa mengirim data p
    - **Method**: `POST`.
    - **Payload / Content type**: pilih **JSON** jika tersedia. Bentuk key-value (form data) juga diterima.
    - **Parameter / field yang dikirim**: pilih **semua field form**. Tambahkan juga field sistem bila tersedia (misalnya *Added Time* atau *Entry ID*), supaya dua entri yang isinya kebetulan sama tetap tercatat terpisah.
-   - Nama parameter yang dipilih di sini menjadi **judul kolom** di EDMS dan Excel, jadi pakai nama yang mudah dibaca.
+   - Nama parameter yang dipilih di sini menjadi **judul kolom** di EDMS dan Excel. **Samakan dengan label field di Zoho**, supaya kolomnya cocok dengan jawaban hasil impor CSV (langkah C).
 5. **Save**.
 6. Uji: isi form tersebut sekali di Zoho dengan data berlabel **TEST**, lalu buka EDMS → Form → **Lihat entri**. Entri harus muncul dalam ±10 detik. Hapus entri TEST di Zoho bila perlu. Di EDMS, entri TEST tetap tercatat; minta Super user menghapusnya dari database bila mengganggu.
+
+## C. Impor jawaban lama (sekali per form)
+
+Webhook hanya mengirim jawaban **baru**. Jawaban yang sudah ada di Zoho sebelum webhook dipasang diambil sekali lewat file Export:
+
+1. Pasang webhook dulu (langkah A dan B), supaya tidak ada jawaban yang terlewat.
+2. Di Zoho: buka form → **All Entries** → **Export** → format **CSV**. Ikutkan kolom **Added Time**, supaya waktu asli jawaban ikut tersimpan.
+3. Di EDMS (Super user): menu **Form** → **Lihat entri** pada form **yang sama** → **Impor entri lama (CSV Zoho)** → pilih file CSV.
+4. EDMS menampilkan jumlah jawaban yang masuk dan yang dilewati. Impor ulang file yang sama tidak menggandakan jawaban.
+
+Perhatikan:
+- Satu file CSV untuk satu form. Jangan impor file form A ke form B.
+- Kolom hasil impor memakai **label field** dari Zoho. Supaya kolom jawaban impor dan jawaban webhook sama, isi **nama parameter webhook sama persis dengan label field** di Zoho (langkah B).
+- Jawaban yang masuk di antara pemasangan webhook dan export bisa tercatat dua kali (sekali dari webhook, sekali dari impor), karena bentuk datanya berbeda. Sumber tiap jawaban terlihat di detail entri dan kolom **Sumber** di Excel.
+- Batas: 20 MB atau 20.000 jawaban per file.
 
 ## Menambah form Zoho baru
 
@@ -65,7 +80,7 @@ Form yang sudah ditambahkan tidak bisa dihapus dari menu, supaya entrinya tidak 
 | Entri ada di Zoho tetapi tidak di EDMS | Cek URL di Zoho: domain publik, kode form, dan `key=` lengkap 64 karakter. Pastikan Tunnel dan aplikasi NAS berjalan. |
 | Zoho mencatat error 401 | Kunci salah atau sudah diganti. Salin ulang URL dari EDMS. |
 | Zoho mencatat error 429 | Lebih dari 600 kiriman per 10 menit dari satu alamat. Tunggu, lalu kirim ulang. |
-| Entri lama sebelum webhook dipasang tidak ada | Webhook hanya mengirim entri baru. Entri lama tetap ada di Zoho (All Entries → Export). |
+| Entri lama sebelum webhook dipasang tidak ada | Webhook hanya mengirim entri baru. Impor dari CSV Export Zoho (langkah C). |
 | Kolom isi kosong atau nama kolom aneh | Atur ulang daftar field atau nama parameter di pengaturan webhook Zoho. |
 
 Kuota webhook Zoho mengikuti paket. Paket Basic punya batas pemakaian webhook; add-on "Pengisian Webhook" bisa dibeli di halaman Subscription bila kuota habis.

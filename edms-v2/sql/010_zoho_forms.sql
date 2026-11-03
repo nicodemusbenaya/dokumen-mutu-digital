@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS v2_zoho_forms (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS v2_zoho_entries (
  id CHAR(36) PRIMARY KEY, form_slug VARCHAR(80) NOT NULL, payload_hash CHAR(64) NOT NULL, payload_json LONGTEXT NOT NULL,
- received_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ source VARCHAR(10) NOT NULL DEFAULT 'webhook', received_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
  UNIQUE KEY uq_v2_zoho_entry(form_slug,payload_hash), INDEX idx_v2_zoho_entry(form_slug,received_at),
  FOREIGN KEY(form_slug) REFERENCES v2_zoho_forms(slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
