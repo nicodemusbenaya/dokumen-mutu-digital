@@ -1,14 +1,14 @@
-// Update 2.1.8: migrasi aditif tabel Form (009) + izin akun runtime terbatas.
-// Tidak mengubah/menghapus data lama. Dijalankan oleh nas-app-update.sh saat aplikasi STOPPED.
-// Mode test: FORMS_MIGRATION_TEST=1 memakai DB_* dari environment (DB uji terisolasi, bukan NAS).
+// Update 2.1.9: tabel Form Zoho (010) + izin akun runtime terbatas; tabel form builder 2.1.8 dihapus
+// (keputusan pengguna 3 Nov 2026, sesudah backup DB+file terverifikasi). Dokumen, akun dan audit tidak diubah. Dijalankan oleh nas-app-update.sh saat aplikasi STOPPED.
+// Mode test: ZOHO_MIGRATION_TEST=1 memakai DB_* dari environment (DB uji terisolasi, bukan NAS).
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import mysql from 'mysql2/promise';
 
-const TABLES=['v2_forms','v2_form_versions','v2_form_submissions'];
+const TABLES=['v2_zoho_forms','v2_zoho_entries'],OLD=['v2_form_submissions','v2_form_versions','v2_forms'];
 const env=json=>Object.fromEntries(json.Config.Env.map(v=>{const i=v.indexOf('=');return [v.slice(0,i),v.slice(i+1)];}));
 let admin,runtimeUser;
-if(process.env.FORMS_MIGRATION_TEST==='1'){
+if(process.env.ZOHO_MIGRATION_TEST==='1'){
  admin={host:process.env.DB_HOST,port:Number(process.env.DB_PORT),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME};
  runtimeUser=process.env.RUNTIME_DB_USER;
 }else{
@@ -29,9 +29,10 @@ try{
  const [deps]=await c.query("SELECT version FROM v2_migrations WHERE version='001'");
  assert.equal(deps.length,1,'Schema 001 missing');
  const [[before]]=await c.query('SELECT (SELECT COUNT(*) FROM v2_documents) documents,(SELECT COUNT(*) FROM users) accounts');
- const sql=(await fs.readFile(new URL('../sql/009_forms.sql',import.meta.url),'utf8')).replace(/^﻿/,'');
+ const removed={};for(const table of OLD){const [[x]]=await c.query('SELECT COUNT(*) n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?',[table]);if(Number(x.n)){const [[r]]=await c.query('SELECT COUNT(*) n FROM `'+table+'`');removed[table]=Number(r.n);await c.query('REVOKE ALL PRIVILEGES ON `'+admin.database+'`.`'+table+'` FROM ?@?',[runtimeUser,'%']).catch(()=>{});}}
+ const sql=(await fs.readFile(new URL('../sql/010_zoho_forms.sql',import.meta.url),'utf8')).replace(/^﻿/,'');
  for(const statement of sql.split(';').filter(s=>s.trim()))await c.query(statement);
- await c.query('INSERT IGNORE INTO v2_migrations(version,detail) VALUES(?,?)',['009','Additive form builder tables; existing records untouched']);
+ await c.query('INSERT IGNORE INTO v2_migrations(version,detail) VALUES(?,?)',['010','Zoho form tables; 2.1.8 form builder tables dropped after verified backup']);
  const [accounts]=await c.query('SELECT User FROM mysql.user WHERE User=? AND Host=?',[runtimeUser,'%']);
  assert.equal(accounts.length,1,'Expected existing restricted runtime account');
  for(const table of TABLES){
@@ -41,5 +42,5 @@ try{
  }
  const [[after]]=await c.query('SELECT (SELECT COUNT(*) FROM v2_documents) documents,(SELECT COUNT(*) FROM users) accounts');
  assert.deepEqual(after,before,'Existing record counts changed');
- console.log('FORMS_MIGRATION_PASS '+JSON.stringify({tables:TABLES,runtimeGrants:true,documents:Number(after.documents),accounts:Number(after.accounts)}));
+ console.log('ZOHO_MIGRATION_PASS '+JSON.stringify({tables:TABLES,droppedRows:removed,runtimeGrants:true,documents:Number(after.documents),accounts:Number(after.accounts)}));
 }finally{await c.end();}

@@ -14,7 +14,7 @@ import {filenameIdentity} from './filename-identity.mjs';
 import {skipImportItem,resolveImportItem} from './import-actions.mjs';
 import {departmentsMatch} from './document-classification.mjs';
 import {listDocumentMap,updateDocumentMap,readRegisteredDocumentDate} from './document-map.mjs';
-import {forms,publicForms} from './forms-api.mjs';
+import {zohoWebhook,zohoForms} from './zoho.mjs';
 const MAX_CHUNK=4*1024*1024;
 async function body(req,max=32768){const reader=req.body?.getReader();if(!reader)return Buffer.alloc(0);let size=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>max){await reader.cancel();fail('Payload terlalu besar',413);}chunks.push(value);}return Buffer.concat(chunks);}
 const json=async req=>{try{return JSON.parse((await body(req,131072)).toString());}catch(e){if(e.status)throw e;fail('JSON tidak valid');}};
@@ -23,14 +23,15 @@ function uuid(value){if(!/^[a-f0-9-]{36}$/i.test(value||''))fail('ID tidak valid
 async function getFile(fileId,user){const [f]=await query('SELECT f.*,v.document_id,v.number,d.active_version,d.owner_id,d.department,d.status FROM v2_files f JOIN v2_versions v ON v.id=f.version_id JOIN v2_documents d ON d.id=v.document_id WHERE f.id=?',[uuid(fileId)]);if(!f)fail('File tidak ditemukan',404);if(f.status==='Sampah')fail('Pulihkan dokumen dari Sampah sebelum download',403);if((f.number!==f.active_version||f.status!=='Aktif')&&!editable(user,{ownerId:f.owner_id,department:f.department}))fail('Tidak memiliki akses versi arsip',403);return f;}
 export async function handle(req,segments){try{
  const method=req.method,url=new URL(req.url),[area,key,operation]=segments;
+ // Webhook Zoho datang dari server Zoho (tanpa Origin/sesi); dilindungi kunci per form.
+ const hook=await zohoWebhook(req,segments,{body,response});if(hook)return hook;
  if(method!=='GET'&&method!=='HEAD')origin(req);
- if(area==='health'&&method==='GET'){try{await query('SELECT 1');await ensure();return response({ok:true,version:'2.1.8',database:true});}catch{return response({ok:false,error:'Database atau storage belum siap'},503);}}
+ if(area==='health'&&method==='GET'){try{await query('SELECT 1');await ensure();return response({ok:true,version:'2.1.9',database:true});}catch{return response({ok:false,error:'Database atau storage belum siap'},503);}}
  if(area==='login'&&method==='POST'){
   await rate(req,'login',20);const data=await json(req),username=text(data.username,60);const [u]=await query('SELECT u.id,u.username,u.full_name fullName,u.password_hash,u.bidang,r.name role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.username=? AND u.is_active=1',[username]);
   if(!u||typeof data.password!=='string'||data.password.length>200||!await bcrypt.compare(data.password,u.password_hash))fail('Username atau password salah',401);
   const result=response({user:{id:u.id,username:u.username,fullName:u.fullName,role:u.role,bidang:u.bidang}});result.cookies.set(cookie(),await token({uid:u.id}),{httpOnly:true,secure:process.env.COOKIE_SECURE==='true'||url.protocol==='https:',sameSite:'lax',path:'/',maxAge:28800});await audit(null,u,req,'LOGIN');return result;
  }
- const shared=await publicForms(req,segments,{body,response});if(shared)return shared;
  const user=await actor(req);
  if(area==='document-map'){
   if(method==='GET'&&!key)return response(await listDocumentMap());
@@ -39,7 +40,7 @@ export async function handle(req,segments){try{
   fail('Aksi Peta Dokumen tidak didukung',405);
  }
  const managed=await management(req,segments,user,json,response);if(managed)return managed;
- const formResult=await forms(req,segments,user,{body,response});if(formResult)return formResult;
+ const formResult=await zohoForms(req,segments,user,{body,response});if(formResult)return formResult;
  if(area==='me')return response({user,canUpload:editable(user)});
  if(area==='logout'&&method==='POST'){await audit(null,user,req,'LOGOUT');const r=response({ok:true});r.cookies.set(cookie(),'',{httpOnly:true,path:'/',maxAge:0});return r;}
  if(area==='stats'&&method==='GET'){const [stats]=await query("SELECT COUNT(*) documents,COALESCE(SUM(active_version-1),0) revisions,COUNT(DISTINCT department) departments FROM v2_documents WHERE status='Aktif'");const [files]=await query('SELECT COUNT(*) files,COALESCE(SUM(size),0) bytes FROM v2_files');const recent=await query("SELECT id,code,title,department,active_version activeVersion,updated_at updatedAt FROM v2_documents WHERE status='Aktif' ORDER BY updated_at DESC LIMIT 5");return response({...stats,...files,recent});}
