@@ -1,5 +1,9 @@
 # Status implementasi EDMS v2
 
+## Paket 2.1.8 (Form) disiapkan di laptop — 3 November 2026
+
+Paket `edms-v2/release/app-update-2.1.8` berisi image `edms-ups:2.1.8` (linux/amd64, `sha256:50359dd7f2c7…`), migrasi aditif 009 tabel Form dan seed 4 form asli (draf). Atas keputusan pengguna tidak ada suite DUMMY penuh/UI browser dan tidak ada smoke DUMMY di produksi; bukti laptop: tes form 24/24, typecheck, runtime image (health 2.1.8, preflight productionReady, pdf2docx), migrasi+izin runtime+seed pada MariaDB uji terisolasi, checksum/sintaks paket di BusyBox. NAS belum dijangkau (laptop tidak berada di jaringan NAS); belum ada backup, restore gate, maupun deploy. Langkah: [UPDATE_NAS_2_1_8.md](UPDATE_NAS_2_1_8.md). Status update 2.1.7 di NAS belum terkonfirmasi; periksa image dan status aplikasi sebelum backup.
+
 ## Insiden gate update 2.1.7 — 30 Oktober 2026
 
 Backup maintenance NAS `edms-update-20261030T074540Z-2104` selesai dan aplikasi lama ditahan STOPPED. Restore terisolasi di laptop lulus sebagai `DUMMY-RESTORE-e252eef44b38`: 24 tabel/objek, arsip app/storage dan Compose terverifikasi. Gate untuk backup tersebut dibuat dan checksum salinan NAS cocok. Update belum terbukti selesai.
