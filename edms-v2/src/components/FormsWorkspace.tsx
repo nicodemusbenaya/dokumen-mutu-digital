@@ -8,7 +8,7 @@ import {IconPlus,IconFileText} from './Icons';
 import s from './Forms.module.css';
 import w from '../app/workspace.module.css';
 type FormSummary={id:string;title:string;department:string|null;status:'draft'|'published'|'closed';access:'login'|'public';publicToken:string;publishedVersion:number|null;submissions:number;hasUnpublishedChanges:boolean;updatedAt:string};
-const statusName={draft:'Draf',published:'Dipublish',closed:'Ditutup'};
+const statusName={draft:'Draf',published:'Dipublish',closed:'Tidak dipublish'};
 export function FormsWorkspace({user}:{user:{role:string}}){
  const list=useResource<{forms:FormSummary[]}>('forms');
  const [open,setOpen]=useState<{mode:'builder'|'responses';id:string;imported?:boolean}|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);

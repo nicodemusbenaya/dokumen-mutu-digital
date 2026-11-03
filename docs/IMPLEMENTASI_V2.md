@@ -1,8 +1,12 @@
 # Status implementasi EDMS v2
 
+## NAS v2.1.8 (Form) lulus — 3 November 2026
+
+NAS mencetak `NAS_APP_UPDATE_PASS` pada `/share/Container/edms-release/app-update-2.1.8/attempt-20261103T023423Z-856`. Health LAN dari laptop `{ok:true,version:"2.1.8",database:true}`; container running/healthy, OOMKilled=false; preflight productionReady=true, 7 akun aktif. Migrasi aditif 009 lulus (`FORMS_MIGRATION_PASS`, izin runtime hanya pada 3 tabel form); jumlah sebelum/sesudah tetap 367 dokumen dan 7 akun. Empat form asli dibuat sebagai draf. Backup `/share/Container/edms-backups/edms-update-20261103T015018Z-24967` diuji restore di laptop (`DUMMY-RESTORE-71761cf4e131`: 24 tabel/objek, hash seluruh file asli dan Compose cocok). Atas keputusan pengguna tidak ada smoke DUMMY di produksi; form diuji langsung oleh pengguna. Checkpoint ini tidak boleh dipakai ulang setelah produksi menerima penulisan baru.
+
 ## Paket 2.1.8 (Form) disiapkan di laptop — 3 November 2026
 
-Paket `edms-v2/release/app-update-2.1.8` berisi image `edms-ups:2.1.8` (linux/amd64, `sha256:50359dd7f2c7…`), migrasi aditif 009 tabel Form dan seed 4 form asli (draf). Atas keputusan pengguna tidak ada suite DUMMY penuh/UI browser dan tidak ada smoke DUMMY di produksi; bukti laptop: tes form 24/24, typecheck, runtime image (health 2.1.8, preflight productionReady, pdf2docx), migrasi+izin runtime+seed pada MariaDB uji terisolasi, checksum/sintaks paket di BusyBox. NAS belum dijangkau (laptop tidak berada di jaringan NAS); belum ada backup, restore gate, maupun deploy. Langkah: [UPDATE_NAS_2_1_8.md](UPDATE_NAS_2_1_8.md). Status update 2.1.7 di NAS belum terkonfirmasi; periksa image dan status aplikasi sebelum backup.
+Paket `edms-v2/release/app-update-2.1.8` berisi image `edms-ups:2.1.8` (linux/amd64, `sha256:50359dd7f2c7…`), migrasi aditif 009 tabel Form dan seed 4 form asli (draf). Atas keputusan pengguna tidak ada suite DUMMY penuh/UI browser dan tidak ada smoke DUMMY di produksi; bukti laptop: tes form 24/24, typecheck, runtime image (health 2.1.8, preflight productionReady, pdf2docx), migrasi+izin runtime+seed pada MariaDB uji terisolasi, checksum/sintaks paket di BusyBox. Deploy selesai, lihat bagian di atas. Langkah: [UPDATE_NAS_2_1_8.md](UPDATE_NAS_2_1_8.md). Sebelum update, NAS terkonfirmasi menjalankan 2.1.7.
 
 ## Insiden gate update 2.1.7 — 30 Oktober 2026
 

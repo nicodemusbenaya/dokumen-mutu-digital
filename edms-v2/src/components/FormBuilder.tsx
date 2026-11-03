@@ -12,7 +12,7 @@ import w from '../app/workspace.module.css';
 type Detail={id:string;title:string;department:string|null;status:'draft'|'published'|'closed';access:'login'|'public';publicToken:string;publishedVersion:number|null;lockVersion:number;submissions:number;hasUnpublishedChanges:boolean;definition:Definition};
 const TYPES:[FieldType,string][]=[['heading','Judul bagian'],['static','Teks/pernyataan'],['text','Teks singkat'],['textarea','Teks panjang'],['date','Tanggal'],['time','Jam'],['radio','Pilihan satu'],['checkbox','Pilihan banyak'],['grid','Ceklis / matriks'],['table','Tabel berulang'],['signature','Tanda tangan']];
 const typeName=Object.fromEntries(TYPES) as Record<FieldType,string>;
-const statusName={draft:'Draf',published:'Dipublish',closed:'Ditutup'};
+const statusName={draft:'Draf',published:'Dipublish',closed:'Tidak dipublish'};
 const newId=(p='f')=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const lines=(t:string)=>t.split('\n').map(x=>x.trim()).filter(Boolean);
 const rowsToText=(rows:Row[])=>rows.map(r=>r.cells.join(' | ')).join('\n');
@@ -75,7 +75,7 @@ export function FormBuilder({id,user,imported,back}:{id:string;user:{role:string
  const add=()=>{const f=blank(addType);setFields([...fields,f]);setOpen(f.id);};
  async function save(){setBusy(true);setError('');try{const d=await call('forms/'+id,{method:'PUT',body:JSON.stringify({title:form!.title,department:form!.department,access:form!.access,definition:form!.definition,expectedVersion:form!.lockVersion})});setForm({...form!,lockVersion:d.lockVersion});setDirty(false);setNotice('Draf tersimpan.');return true;}catch(e:any){setError(e.message);return false;}finally{setBusy(false);}}
  async function publish(){if(dirty&&!await save())return;setBusy(true);setError('');try{await call('forms/'+id+'/publish',{method:'POST',body:'{}'});setNotice('Form dipublish. Link siap dibagikan.');res.reload();}catch(e:any){setError(e.message);}finally{setBusy(false);}}
- async function close(){if(!window.confirm('Tutup form? Link tidak dapat diisi sampai form dipublish lagi.'))return;setBusy(true);try{await call('forms/'+id+'/close',{method:'POST',body:'{}'});setNotice('Form ditutup.');res.reload();}catch(e:any){setError(e.message);}finally{setBusy(false);}}
+ async function close(){if(!window.confirm('Unpublish form? Link tidak dapat diisi sampai form dipublish lagi. Jawaban yang sudah masuk tetap tersimpan.'))return;setBusy(true);try{await call('forms/'+id+'/close',{method:'POST',body:'{}'});setNotice('Form di-unpublish. Jawaban tetap tersimpan; hapus permanen per periode bisa dilakukan di halaman Jawaban.');res.reload();}catch(e:any){setError(e.message);}finally{setBusy(false);}}
  async function remove(){if(!window.confirm('Hapus form ini secara permanen?'))return;setBusy(true);try{await call('forms/'+id,{method:'DELETE'});back();}catch(e:any){setError(e.message);}finally{setBusy(false);}}
  function leave(){if(dirty&&!window.confirm('Perubahan belum disimpan. Tinggalkan builder?'))return;back();}
  const departments=(masters.data?.values||[]).filter(v=>v.type==='department'&&v.isActive);
@@ -98,6 +98,6 @@ export function FormBuilder({id,user,imported,back}:{id:string;user:{role:string
    {fields.map((f,i)=><article key={f.id} className={s.fieldCard}><header><div><span className={s.typeTag}>{typeName[f.type]}</span><strong>{f.type==='static'?(f.text||'').slice(0,80):f.label}</strong>{f.required&&<span className={s.req} aria-label="wajib">*</span>}</div><div className={s.actions}><button type="button" className={s.iconButton} disabled={i===0} onClick={()=>move(i,-1)} aria-label={'Naikkan '+(f.label||'field')}>Naik</button><button type="button" className={s.iconButton} disabled={i===fields.length-1} onClick={()=>move(i,1)} aria-label={'Turunkan '+(f.label||'field')}>Turun</button><button type="button" className={s.iconButton} aria-expanded={open===f.id} onClick={()=>setOpen(open===f.id?null:f.id)}>{open===f.id?'Tutup':'Ubah'}</button><button type="button" className={s.iconButton} onClick={()=>{if(window.confirm('Hapus field ini?'))setFields(fields.filter(x=>x.id!==f.id));}}>Hapus</button></div></header>{open===f.id&&<FieldEditor f={f} update={p=>updateField(f.id,p)}/>}</article>)}
    <div className={s.actions}><label className={s.grow}>Jenis field baru<select value={addType} onChange={e=>setAddType(e.target.value as FieldType)}>{TYPES.map(([t,n])=><option key={t} value={t}>{n}</option>)}</select></label><button type="button" className={w.secondary} onClick={add}><IconPlus/>Tambah field</button></div>
   </section>}
-  <div className={s.actions}>{form.status==='published'&&<button className={w.secondary} disabled={busy} onClick={close}>Tutup form</button>}{form.submissions===0&&<button className={w.secondary} disabled={busy} onClick={remove}>Hapus form</button>}</div>
+  <div className={s.actions}>{form.status==='published'&&<button className={w.secondary} disabled={busy} onClick={close}>Unpublish</button>}{form.submissions===0&&<button className={w.secondary} disabled={busy} onClick={remove}>Hapus form</button>}</div>
  </>;
 }

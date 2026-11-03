@@ -110,3 +110,14 @@ export function validateAnswers(def,input){
  if(Object.keys(errors).length){const e=new Error('Periksa kembali isian yang ditandai');e.status=400;e.fields=errors;throw e;}
  return out;
 }
+
+// Rentang tanggal kirim (inklusif, waktu lokal DB). Kosong = semua jawaban form.
+export function purgeRange(data){
+ const day=v=>{if(v===undefined||v===null||v==='')return null;const d=new Date(v+'T00:00:00Z');if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v)||isNaN(d)||d.toISOString().slice(0,10)!==v)fail('Tanggal periode tidak valid');return v;};
+ const from=day(data?.from),to=day(data?.to);
+ if(from&&to&&from>to)fail('Tanggal "dari" harus sebelum atau sama dengan "sampai"');
+ let sql='';const args=[];
+ if(from){sql+=' AND created_at>=?';args.push(from+' 00:00:00');}
+ if(to){sql+=' AND created_at<DATE_ADD(?,INTERVAL 1 DAY)';args.push(to+' 00:00:00');}
+ return {sql,args,from,to};
+}

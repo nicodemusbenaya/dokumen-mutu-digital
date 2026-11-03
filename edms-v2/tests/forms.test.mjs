@@ -250,3 +250,12 @@ test('format email/angka, kolom tabel wajib, dan syarat tampil (pola form Zoho)'
  assert.throws(()=>validateDefinition({fields:[{id:'a',type:'text',label:'A',showIf:{field:'b',anyOf:['x']}},{id:'b',type:'radio',label:'B',options:['x']}]}),/syarat tampil/);
  assert.throws(()=>validateDefinition({fields:[{id:'a',type:'date',label:'A',format:'email'}]}),/format/);
 });
+
+import {purgeRange} from '../src/lib/forms.mjs';
+test('periode hapus permanen jawaban: kosong = semua, inklusif per hari, tanggal divalidasi',()=>{
+ assert.deepEqual(purgeRange({}),{sql:'',args:[],from:null,to:null});
+ const r=purgeRange({from:'2026-11-01',to:'2026-11-30'});
+ assert.equal(r.sql,' AND created_at>=? AND created_at<DATE_ADD(?,INTERVAL 1 DAY)');
+ assert.deepEqual(r.args,['2026-11-01 00:00:00','2026-11-30 00:00:00']);
+ for(const bad of [{from:'2026-02-30'},{to:'1/11/2026'},{from:'2026-12-01',to:'2026-11-01'},{from:42}])assert.throws(()=>purgeRange(bad));
+});

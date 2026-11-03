@@ -2,7 +2,7 @@ import {NextResponse} from 'next/server';
 import {query,withTransaction,rows} from './db.mjs';
 import {id,fail,text} from './core.mjs';
 import {actor,audit,rate} from './security.mjs';
-import {canManage,validateDefinition,validateAnswers,publicToken} from './forms.mjs';
+import {canManage,validateDefinition,validateAnswers,publicToken,purgeRange} from './forms.mjs';
 import {flatten,toXlsx} from './form-export.mjs';
 import {importDocx} from './form-import.mjs';
 const ANON={id:null,fullName:'Anonim (link publik)'};
@@ -88,9 +88,25 @@ export async function forms(req,segments,user,{body,response}){
   return response({publishedVersion:version});
  }
  if(operation==='close'&&method==='POST'){
-  if(f.status!=='published')fail('Hanya form yang dipublish yang dapat ditutup',409);
+  if(f.status!=='published')fail('Hanya form yang dipublish yang dapat di-unpublish',409);
   await withTransaction(async c=>{await rows(c,"UPDATE v2_forms SET status='closed' WHERE id=?",[f.id]);await audit(c,user,req,'FORM_CLOSE',null,{formId:f.id});});
   return response({ok:true});
+ }
+ if(operation==='purge'&&method==='POST'){
+  // Hapus permanen jawaban per periode (termasuk yang sudah disembunyikan). Hanya saat form tidak dipublish.
+  const data=await readJson(body,req,4096),range=purgeRange(data);
+  if(!data?.dryRun&&data?.confirm!=='HAPUS')fail('Ketik HAPUS untuk konfirmasi penghapusan permanen');
+  const deleted=await withTransaction(async c=>{
+   const [live]=await rows(c,'SELECT status FROM v2_forms WHERE id=? FOR UPDATE',[f.id]);
+   if(live.status==='published')fail('Unpublish form terlebih dahulu sebelum menghapus jawaban permanen',409);
+   const [n]=await rows(c,'SELECT COUNT(*) n FROM v2_form_submissions WHERE form_id=?'+range.sql,[f.id,...range.args]);
+   const count=Number(n.n);
+   if(data?.dryRun||!count)return count;
+   await rows(c,'DELETE FROM v2_form_submissions WHERE form_id=?'+range.sql,[f.id,...range.args]);
+   await audit(c,user,req,'FORM_SUBMISSIONS_PURGE',null,{formId:f.id,title:f.title,from:range.from,to:range.to,deleted:count});
+   return count;
+  });
+  return response(data?.dryRun?{count:deleted}:{deleted});
  }
  if(operation==='submissions'&&method==='GET'){
   const page=Math.max(1,Number(url.searchParams.get('page'))||1);
