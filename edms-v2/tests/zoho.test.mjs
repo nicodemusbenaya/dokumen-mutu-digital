@@ -36,5 +36,24 @@ test('CSV export Zoho: kutip, baris baru dalam sel, BOM, titik koma, Added Time'
  assert.deepEqual(e[0],{payload:{'Added Time':'03-Nov-2026 02:05:00 PM',Nama:'DUMMY A',Catatan:''},time:'2026-11-03 14:05:00'});
  assert.equal(e[1].time,null);
  assert.throws(()=>csvEntries('Nama\n'));
- assert.throws(()=>csvEntries('Nama,Nama\nA,B'));
+ assert.deepEqual(csvEntries('Nama,Nama\nA,B')[0].payload,{Nama:'A','Nama (2)':'B'});
+});
+test('CSV Zoho header dua baris: matriks datar, subform dari baris lanjutan', async()=>{
+ const {csvEntries}=await import('../src/lib/zoho.mjs');
+ const csv=['Nama,Konflik?,,Daftar Kandidat,,Added Time',',1. Keluarga,2. Kerja,Nama Kandidat,NIP,',
+  'DUMMY A,Tidak,Ya,K1,11,03-Nov-2026 10:00:00',',,,K2,12,','DUMMY B,Ya,Tidak,,,02-Nov-2026 09:00:00'].join('\n');
+ const e=csvEntries(csv);
+ assert.equal(e.length,2);
+ assert.deepEqual(e[0].payload,{Nama:'DUMMY A','1. Keluarga':'Tidak','2. Kerja':'Ya','Daftar Kandidat':[{'Nama Kandidat':'K1',NIP:'11'},{'Nama Kandidat':'K2',NIP:'12'}],'Added Time':'03-Nov-2026 10:00:00'});
+ assert.deepEqual(e[1].payload['Daftar Kandidat'],[]);
+ assert.equal(e[1].time,'2026-11-02 09:00:00');
+});
+test('rentang tanggal hapus per periode', async()=>{
+ const {purgeRange}=await import('../src/lib/zoho.mjs');
+ assert.deepEqual(purgeRange({}),{from:null,to:null,sql:'',args:[]});
+ const r=purgeRange({from:'2026-11-01',to:'2026-11-03'});
+ assert.equal(r.sql,' AND received_at>=? AND received_at<DATE_ADD(?,INTERVAL 1 DAY)');
+ assert.deepEqual(r.args,['2026-11-01','2026-11-03']);
+ assert.throws(()=>purgeRange({from:'2026-11-05',to:'2026-11-01'}));
+ assert.throws(()=>purgeRange({from:"2026-11-01' OR 1=1"}));
 });

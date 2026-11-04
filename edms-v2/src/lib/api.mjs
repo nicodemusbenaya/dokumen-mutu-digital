@@ -26,7 +26,7 @@ export async function handle(req,segments){try{
  // Webhook Zoho datang dari server Zoho (tanpa Origin/sesi); dilindungi kunci per form.
  const hook=await zohoWebhook(req,segments,{body,response});if(hook)return hook;
  if(method!=='GET'&&method!=='HEAD')origin(req);
- if(area==='health'&&method==='GET'){try{await query('SELECT 1');await ensure();return response({ok:true,version:'2.1.9',database:true});}catch{return response({ok:false,error:'Database atau storage belum siap'},503);}}
+ if(area==='health'&&method==='GET'){try{await query('SELECT 1');await ensure();return response({ok:true,version:'2.1.10',database:true});}catch{return response({ok:false,error:'Database atau storage belum siap'},503);}}
  if(area==='login'&&method==='POST'){
   await rate(req,'login',20);const data=await json(req),username=text(data.username,60);const [u]=await query('SELECT u.id,u.username,u.full_name fullName,u.password_hash,u.bidang,r.name role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.username=? AND u.is_active=1',[username]);
   if(!u||typeof data.password!=='string'||data.password.length>200||!await bcrypt.compare(data.password,u.password_hash))fail('Username atau password salah',401);

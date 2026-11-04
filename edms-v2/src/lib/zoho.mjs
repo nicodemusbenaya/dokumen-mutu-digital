@@ -50,12 +50,42 @@ export function zohoTime(v){
  return Number(mo)>=1&&Number(mo)<=12&&Number(d)>=1&&Number(d)<=31&&Number(h)<24&&Number(mi)<60?out:null;
 }
 const TIME_COLUMNS=['Added Time','Waktu Ditambahkan','Submitted Time','Added_Time'];
+// Export CSV Zoho bisa memakai header dua baris: baris 1 judul field/kelompok (matriks, subform),
+// baris 2 sub-kolom. Isi subform ke-2 dst. ada di baris lanjutan yang kolom biasanya kosong.
+// ponytail: subform dikenali dari adanya baris lanjutan; subform yang di seluruh file hanya
+// berisi satu baris diratakan seperti matriks (nilai tetap utuh, hanya bentuknya datar).
 export function csvEntries(text){
  const rows=parseCsv(text);if(rows.length<2)fail('File CSV kosong atau tidak memiliki baris jawaban');
- const head=rows[0].map((h,i)=>h.trim()||'Kolom '+(i+1)),timeCol=head.findIndex(h=>TIME_COLUMNS.includes(h));
- if(new Set(head).size!==head.length)fail('Judul kolom CSV ada yang sama. Export ulang dari Zoho.');
- if(rows.length-1>20000)fail('Maksimal 20.000 jawaban per impor');
- return rows.slice(1).map(r=>({payload:Object.fromEntries(head.map((h,i)=>[h,(r[i]??'').trim()])),time:timeCol>=0?zohoTime(r[timeCol]):null}));
+ const h0=rows[0].map(v=>v.trim()),h1=(rows[1]||[]).map(v=>v.trim());
+ const two=rows.length>2&&!h1[0]&&h1.some(Boolean)&&h1.every((v,i)=>!v||!h0[i]||!h0[i+1]);
+ let group=null;
+ const cols=h0.map((v,i)=>{const sub=two?h1[i]||'':'';if(v){group=sub?v:null;return {group,key:sub||v};}return {group:two?group:null,key:sub||'Kolom '+(i+1)};});
+ const data=rows.slice(two?2:1),single=cols.map((c,i)=>c.group?-1:i).filter(i=>i>=0);
+ const isCont=r=>single.length>0&&single.every(i=>!(r[i]||'').trim())&&r.some(v=>v.trim());
+ const subforms=new Set();for(const r of data)if(isCont(r))r.forEach((v,i)=>{if(v.trim()&&cols[i].group)subforms.add(cols[i].group);});
+ const grouped=[];for(const r of data){if(isCont(r)&&grouped.length)grouped.at(-1).push(r);else grouped.push([r]);}
+ if(grouped.length>20000)fail('Maksimal 20.000 jawaban per impor');
+ const timeCol=cols.findIndex(c=>!c.group&&TIME_COLUMNS.includes(c.key));
+ return grouped.map(lines=>{
+  const payload={},first=lines[0],put=(k,v)=>{let key=k,n=2;while(key in payload)key=k+' ('+(n++)+')';payload[key]=v;};
+  cols.forEach((c,i)=>{
+   if(c.group&&subforms.has(c.group)){
+    if(c.group in payload)return;
+    const idx=cols.map((x,j)=>x.group===c.group?j:-1).filter(j=>j>=0);
+    put(c.group,lines.map(l=>Object.fromEntries(idx.map(j=>[cols[j].key,(l[j]||'').trim()]))).filter(o=>Object.values(o).some(Boolean)));
+   }else put(c.key,(first[i]??'').trim());
+  });
+  return {payload,time:timeCol>=0?zohoTime(first[timeCol]):null};
+ });
+}
+// Rentang tanggal YYYY-MM-DD (inklusif) atas waktu entri; tanpa tanggal = semua entri form.
+export function purgeRange(d){
+ const ok=v=>v==null||v===''||(/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z')));
+ const from=d?.from||null,to=d?.to||null;
+ if(!ok(from)||!ok(to))fail('Format tanggal tidak valid');
+ if(from&&to&&from>to)fail('Tanggal awal melebihi tanggal akhir');
+ const sql=(from?' AND received_at>=?':'')+(to?' AND received_at<DATE_ADD(?,INTERVAL 1 DAY)':'');
+ return {from,to,sql,args:[from,to].filter(Boolean)};
 }
 export function columns(entries){const seen=new Set();for(const e of entries)for(const k of Object.keys(e.payload))seen.add(k);return [...seen];}
 
@@ -80,7 +110,7 @@ export const slugify=v=>String(v).toLowerCase().normalize('NFKD').replace(/[^a-z
 export function zohoLink(v){if(v==null||v==='')return null;if(typeof v!=='string'||v.length>500||!/^https:\/\/forms\.zoho\.(com|eu|in|jp|sa|ca|com\.au|com\.cn)\/[\w\-\/.]+$/i.test(v.trim()))fail('Link Zoho harus diawali https://forms.zoho.com/');return v.trim();}
 
 export async function zohoForms(req,segments,user,{body,response}){
- const [area,slug,operation]=segments,method=req.method,url=new URL(req.url);
+ const [area,slug,operation,entryId]=segments,method=req.method,url=new URL(req.url);
  if(area!=='zoho-forms')return null;
  if(!editable(user))fail('Anda tidak berhak melihat Form',403);
  const admin=user.role==='Super user';
@@ -99,6 +129,32 @@ export async function zohoForms(req,segments,user,{body,response}){
   return response({slug:created,webhookKey:key},201);
  }
  const f=await form(slug);
+ // Penghapusan permanen (Super user): satu entri, per periode, atau form beserta seluruh entrinya.
+ const readBody=async()=>{try{return JSON.parse((await body(req,8192)).toString()||'{}');}catch(e){if(e.status)throw e;fail('JSON tidak valid');}};
+ const requireAdmin=()=>{if(!admin)fail('Hanya Super user yang dapat menghapus',403);};
+ if(!operation&&method==='DELETE'){
+  requireAdmin();const data=await readBody();if(data?.confirm!=='HAPUS')fail('Ketik HAPUS untuk konfirmasi');
+  const deleted=await withTransaction(async c=>{const r=await rows(c,'DELETE FROM v2_zoho_entries WHERE form_slug=?',[f.slug]);await rows(c,'DELETE FROM v2_zoho_forms WHERE slug=?',[f.slug]);await audit(c,user,req,'ZOHO_FORM_DELETE',null,{form:f.slug,title:f.title,entries:r.affectedRows});return r.affectedRows;});
+  return response({deleted});
+ }
+ if(operation==='entries'&&entryId&&method==='DELETE'){
+  requireAdmin();if(!/^[a-f0-9-]{36}$/i.test(entryId))fail('ID tidak valid');
+  const n=await withTransaction(async c=>{const r=await rows(c,'DELETE FROM v2_zoho_entries WHERE id=? AND form_slug=?',[entryId,f.slug]);if(r.affectedRows)await audit(c,user,req,'ZOHO_ENTRY_DELETE',null,{form:f.slug,entry:entryId});return r.affectedRows;});
+  if(!n)fail('Entri tidak ditemukan',404);
+  return response({deleted:n});
+ }
+ if(operation==='purge'&&method==='POST'){
+  requireAdmin();const data=await readBody(),range=purgeRange(data);
+  if(!data?.dryRun&&data?.confirm!=='HAPUS')fail('Ketik HAPUS untuk konfirmasi');
+  const count=await withTransaction(async c=>{
+   const [n]=await rows(c,'SELECT COUNT(*) n FROM v2_zoho_entries WHERE form_slug=?'+range.sql,[f.slug,...range.args]);
+   if(data?.dryRun||!Number(n.n))return Number(n.n);
+   const r=await rows(c,'DELETE FROM v2_zoho_entries WHERE form_slug=?'+range.sql,[f.slug,...range.args]);
+   await audit(c,user,req,'ZOHO_ENTRIES_PURGE',null,{form:f.slug,from:range.from,to:range.to,deleted:r.affectedRows});
+   return r.affectedRows;
+  });
+  return response(data?.dryRun?{count}:{deleted:count});
+ }
  if(operation==='key'&&method==='POST'){
   if(!admin)fail('Hanya Super user yang dapat membuat kunci webhook',403);
   const key=crypto.randomBytes(32).toString('hex');
